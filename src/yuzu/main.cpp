@@ -5240,8 +5240,7 @@ static void SetHighDPIAttributes() {
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 #endif
 
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+    // High-DPI scaling is always enabled in Qt 6, these attributes are no longer needed.
 }
 
 int main(int argc, char* argv[]) {

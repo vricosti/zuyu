@@ -119,11 +119,11 @@ ConfigureUi::ConfigureUi(Core::System& system_, QWidget* parent)
     SetConfiguration();
 
     // Force game list reload if any of the relevant settings are changed.
-    connect(ui->show_add_ons, &QCheckBox::stateChanged, this, &ConfigureUi::RequestGameListUpdate);
-    connect(ui->show_compat, &QCheckBox::stateChanged, this, &ConfigureUi::RequestGameListUpdate);
-    connect(ui->show_size, &QCheckBox::stateChanged, this, &ConfigureUi::RequestGameListUpdate);
-    connect(ui->show_types, &QCheckBox::stateChanged, this, &ConfigureUi::RequestGameListUpdate);
-    connect(ui->show_play_time, &QCheckBox::stateChanged, this,
+    connect(ui->show_add_ons, &QCheckBox::checkStateChanged, this, &ConfigureUi::RequestGameListUpdate);
+    connect(ui->show_compat, &QCheckBox::checkStateChanged, this, &ConfigureUi::RequestGameListUpdate);
+    connect(ui->show_size, &QCheckBox::checkStateChanged, this, &ConfigureUi::RequestGameListUpdate);
+    connect(ui->show_types, &QCheckBox::checkStateChanged, this, &ConfigureUi::RequestGameListUpdate);
+    connect(ui->show_play_time, &QCheckBox::checkStateChanged, this,
             &ConfigureUi::RequestGameListUpdate);
     connect(ui->game_icon_size_combobox, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &ConfigureUi::RequestGameListUpdate);
@@ -256,7 +256,7 @@ void ConfigureUi::InitializeLanguageComboBox() {
         locale.truncate(locale.lastIndexOf(QLatin1Char{'.'}));
         locale.remove(0, locale.lastIndexOf(QLatin1Char{'/'}) + 1);
         const QString lang = QLocale::languageToString(QLocale(locale).language());
-        const QString country = QLocale::countryToString(QLocale(locale).country());
+        const QString country = QLocale::territoryToString(QLocale(locale).territory());
         ui->language_combobox->addItem(QStringLiteral("%1 (%2)").arg(lang, country), locale);
     }
 

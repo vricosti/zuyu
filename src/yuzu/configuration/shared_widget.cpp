@@ -693,13 +693,13 @@ void Widget::SetupComponent(const QString& label, std::function<void()>& load_fu
     }
 
     if (other_setting != nullptr) {
-        const auto reset = [restore_func, data_component](int state) {
+        const auto reset = [restore_func, data_component](Qt::CheckState state) {
             data_component->setEnabled(state == Qt::Checked);
             if (state != Qt::Checked) {
                 restore_func();
             }
         };
-        connect(checkbox, &QCheckBox::stateChanged, reset);
+        connect(checkbox, &QCheckBox::checkStateChanged, reset);
         reset(checkbox->checkState());
     }
 }
