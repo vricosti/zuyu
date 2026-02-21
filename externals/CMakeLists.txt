@@ -152,7 +152,15 @@ endif()
 
 # Vulkan-Headers
 if (YUZU_USE_EXTERNAL_VULKAN_HEADERS)
-    add_subdirectory(Vulkan-Headers)
+    # If the system Vulkan SDK created Vulkan::Headers (via registry/env),
+    # override its include paths to use our bundled version-matched headers
+    # instead of adding the subdirectory (which would fail on the duplicate target).
+    if (TARGET Vulkan::Headers)
+        set_property(TARGET Vulkan::Headers PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+            "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers/include")
+    else()
+        add_subdirectory(Vulkan-Headers)
+    endif()
 endif()
 
 # Vulkan-Utility-Libraries
