@@ -14,4 +14,20 @@ The yuzu Emulator also falls under the exemptions stated in Section 1201(f) of t
 
 ## Windows
 
+Now that some bundled libs are not available anymore we need to build Qt ourself:
+Dependencies:
+Chocolatey
+Python311
+VS2022
+Webview2 (for QtWebEngine)
+
+install chocolatey:
+choco install winflexbison3
+choco install gperf
+wget https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.3800.47 and unzip into Microsoft.Web.WebView2.1.0.3800.47 folder
+
+configure -prefix D:\Dev\Qt\Qt-6.10.2 -debug-and-release -skip qtremoteobjects -skip qtgrpc -nomake            
+  examples -nomake tests -- -DWEBVIEW2_SDK_ROOT=D:\Dev\webview2\Microsoft.Web.WebView2.1.0.3800.47 -DQT_GENERATE_SBOM=OFF
+
+
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_QT6=ON -DCMAKE_PREFIX_PATH=D:\Dev\Qt\Qt-6.10.2 -DYUZU_USE_BUNDLED_QT=OFF -DYUZU_USE_BUNDLED_SDL2=OFF -DYUZU_USE_EXTERNAL_SDL2=ON

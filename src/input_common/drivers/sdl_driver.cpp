@@ -571,16 +571,23 @@ SDLDriver::~SDLDriver() {
 std::vector<Common::ParamPackage> SDLDriver::GetInputDevices() const {
     std::vector<Common::ParamPackage> devices;
     std::unordered_map<int, std::shared_ptr<SDLJoystick>> joycon_pairs;
+
+    // Global counter per controller name to generate unique display names
+    // across different GUIDs (e.g. two different Xbox One controller models)
+    std::unordered_map<std::string, int> name_counter;
+
     for (const auto& [key, value] : joystick_map) {
         for (const auto& joystick : value) {
             if (!joystick->GetSDLJoystick()) {
                 continue;
             }
+            const std::string controller_name = joystick->GetControllerName();
+            const int display_index = name_counter[controller_name]++;
             const std::string name =
-                fmt::format("{} {}", joystick->GetControllerName(), joystick->GetPort());
+                fmt::format("{} {}", controller_name, display_index);
             devices.emplace_back(Common::ParamPackage{
                 {"engine", GetEngineName()},
-                {"display", std::move(name)},
+                {"display", name},
                 {"guid", joystick->GetGUID().RawString()},
                 {"port", std::to_string(joystick->GetPort())},
             });
