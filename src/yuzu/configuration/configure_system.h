@@ -3,28 +3,23 @@
 
 #pragma once
 
-#include <functional>
 #include <memory>
 #include <vector>
 
 #include <QWidget>
 #include "yuzu/configuration/configuration_shared.h"
 
-class QCheckBox;
-class QLineEdit;
-class QComboBox;
-class QDateTimeEdit;
 namespace Core {
 class System;
-}
-
-namespace Ui {
-class ConfigureSystem;
 }
 
 namespace ConfigurationShared {
 class Builder;
 }
+
+class QQuickWidget;
+class SettingsModel;
+class SystemConfigModel;
 
 class ConfigureSystem : public ConfigurationShared::Tab {
     Q_OBJECT
@@ -40,24 +35,9 @@ public:
     void SetConfiguration() override;
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    void Setup(const ConfigurationShared::Builder& builder);
-
-    void UpdateRtcTime();
-
-    std::vector<std::function<void(bool)>> apply_funcs{};
-
-    std::unique_ptr<Ui::ConfigureSystem> ui;
-    bool enabled = false;
-
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* core_model = nullptr;
+    SettingsModel* system_model = nullptr;
+    SystemConfigModel* system_config_model = nullptr;
     Core::System& system;
-
-    QComboBox* combo_region;
-    QComboBox* combo_language;
-    QCheckBox* checkbox_rtc;
-    QDateTimeEdit* date_rtc;
-    QSpinBox* date_rtc_offset;
-    u64 previous_time;
 };

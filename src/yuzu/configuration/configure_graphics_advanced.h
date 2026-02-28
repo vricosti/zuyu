@@ -12,20 +12,20 @@ namespace Core {
 class System;
 }
 
-namespace Ui {
-class ConfigureGraphicsAdvanced;
-}
-
 namespace ConfigurationShared {
 class Builder;
 }
+
+class QQuickWidget;
+class SettingsModel;
 
 class ConfigureGraphicsAdvanced : public ConfigurationShared::Tab {
     Q_OBJECT
 
 public:
     explicit ConfigureGraphicsAdvanced(
-        const Core::System& system_, std::shared_ptr<std::vector<ConfigurationShared::Tab*>> group,
+        const Core::System& system_,
+        std::shared_ptr<std::vector<ConfigurationShared::Tab*>> group,
         const ConfigurationShared::Builder& builder, QWidget* parent = nullptr);
     ~ConfigureGraphicsAdvanced() override;
 
@@ -35,15 +35,7 @@ public:
     void ExposeComputeOption();
 
 private:
-    void Setup(const ConfigurationShared::Builder& builder);
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    std::unique_ptr<Ui::ConfigureGraphicsAdvanced> ui;
-
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* settings_model = nullptr;
     const Core::System& system;
-
-    std::vector<std::function<void(bool)>> apply_funcs;
-
-    QWidget* checkbox_enable_compute_pipelines{};
 };

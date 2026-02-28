@@ -3,12 +3,9 @@
 
 #pragma once
 
-#include <memory>
 #include <QDialog>
 
-namespace Ui {
-class ConfigureTouchscreenAdvanced;
-}
+class QSpinBox;
 
 class ConfigureTouchscreenAdvanced : public QDialog {
     Q_OBJECT
@@ -20,13 +17,10 @@ public:
     void ApplyConfiguration();
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    /// Load configuration settings.
     void LoadConfiguration();
-    /// Restore all buttons to their default values.
     void RestoreDefaults();
 
-    std::unique_ptr<Ui::ConfigureTouchscreenAdvanced> ui;
+    QSpinBox* diameter_x_box;
+    QSpinBox* diameter_y_box;
+    QSpinBox* angle_box;
 };

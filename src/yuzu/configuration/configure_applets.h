@@ -6,17 +6,12 @@
 #include <QWidget>
 #include "yuzu/configuration/configuration_shared.h"
 
-class QCheckBox;
-class QLineEdit;
-class QComboBox;
-class QDateTimeEdit;
 namespace Core {
 class System;
 }
 
-namespace Ui {
-class ConfigureApplets;
-}
+class QQuickWidget;
+class SettingsModel;
 
 namespace ConfigurationShared {
 class Builder;
@@ -34,15 +29,8 @@ public:
     void SetConfiguration() override;
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    void Setup(const ConfigurationShared::Builder& builder);
-
-    std::vector<std::function<void(bool)>> apply_funcs{};
-
-    std::unique_ptr<Ui::ConfigureApplets> ui;
-    bool enabled = false;
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* settings_model = nullptr;
 
     Core::System& system;
 };

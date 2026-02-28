@@ -158,10 +158,15 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 #include "yuzu/loading_screen.h"
 #include "yuzu/main.h"
 #include "yuzu/play_time_manager.h"
+#include "yuzu/qml_bridge.h"
 #include "yuzu/startup_checks.h"
+#include "yuzu/status_bar_model.h"
 #include "yuzu/uisettings.h"
 #include "yuzu/util/clickable_label.h"
 #include "yuzu/vk_device_info.h"
+
+#include <QQmlContext>
+#include <QQuickWidget>
 
 #ifdef YUZU_CRASH_DUMPS
 #include "yuzu/breakpad.h"
@@ -460,8 +465,8 @@ GMainWindow::GMainWindow(std::unique_ptr<QtConfig> config_, bool has_broken_vulk
 #endif
 
         UpdateAPIText();
-        renderer_status_button->setDisabled(true);
-        renderer_status_button->setChecked(false);
+        status_bar_model->SetRendererEnabled(false);
+        status_bar_model->SetRendererChecked(false);
     } else {
         VkDeviceInfo::PopulateRecords(vk_device_records, this->window()->windowHandle());
     }
@@ -1026,240 +1031,62 @@ void GMainWindow::InitializeWidgets() {
                                              ui->action_Show_Room, *system);
     multiplayer_state->setVisible(false);
 
-    // Create status bar
-    message_label = new QLabel();
-    // Configured separately for left alignment
-    message_label->setFrameStyle(QFrame::NoFrame);
-    message_label->setContentsMargins(4, 0, 4, 0);
-    message_label->setAlignment(Qt::AlignLeft);
-    statusBar()->addPermanentWidget(message_label, 1);
+    // Create QML-based status bar
+    status_bar_model = new StatusBarModel(this);
 
-    shader_building_label = new QLabel();
-    shader_building_label->setToolTip(tr("The amount of shaders currently being built"));
-    res_scale_label = new QLabel();
-    res_scale_label->setToolTip(tr("The current selected resolution scaling multiplier."));
-    emu_speed_label = new QLabel();
-    emu_speed_label->setToolTip(
-        tr("Current emulation speed. Values higher or lower than 100% "
-           "indicate emulation is running faster or slower than a Switch."));
-    game_fps_label = new QLabel();
-    game_fps_label->setToolTip(tr("How many frames per second the game is currently displaying. "
-                                  "This will vary from game to game and scene to scene."));
-    emu_frametime_label = new QLabel();
-    emu_frametime_label->setToolTip(
-        tr("Time taken to emulate a Switch frame, not counting framelimiting or v-sync. For "
-           "full-speed emulation this should be at most 16.67 ms."));
+    status_bar_widget = new QQuickWidget(this);
+    status_bar_widget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    status_bar_widget->setFixedHeight(24);
 
-    for (auto& label : {shader_building_label, res_scale_label, emu_speed_label, game_fps_label,
-                        emu_frametime_label}) {
-        label->setVisible(false);
-        label->setFrameStyle(QFrame::NoFrame);
-        label->setContentsMargins(4, 0, 4, 0);
-        statusBar()->addPermanentWidget(label);
+    QQmlContext* sbCtx = status_bar_widget->rootContext();
+    QmlBridge::SetupContext(sbCtx);
+    sbCtx->setContextProperty(QStringLiteral("statusBarModel"), status_bar_model);
+
+    status_bar_widget->setSource(QUrl(QStringLiteral("qrc:/qml/qml/StatusBar.qml")));
+
+    if (status_bar_widget->status() == QQuickWidget::Error) {
+        for (const auto& error : status_bar_widget->errors()) {
+            LOG_ERROR(Frontend, "StatusBar QML Error: {}", error.toString().toStdString());
+        }
     }
 
-    firmware_label = new QLabel();
-    firmware_label->setObjectName(QStringLiteral("FirmwareLabel"));
-    firmware_label->setVisible(false);
-    firmware_label->setFocusPolicy(Qt::NoFocus);
-    statusBar()->addPermanentWidget(firmware_label);
+    statusBar()->addPermanentWidget(status_bar_widget, 1);
 
+    // Still add multiplayer state widgets to status bar (they remain QWidget-based)
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusText(), 0);
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusIcon(), 0);
 
-    tas_label = new QLabel();
-    tas_label->setObjectName(QStringLiteral("TASlabel"));
-    tas_label->setFocusPolicy(Qt::NoFocus);
-    statusBar()->insertPermanentWidget(0, tas_label);
-
-    volume_popup = new QWidget(this);
-    volume_popup->setWindowFlags(Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint | Qt::Popup);
-    volume_popup->setLayout(new QVBoxLayout());
-    volume_popup->setMinimumWidth(200);
-
-    volume_slider = new QSlider(Qt::Horizontal);
-    volume_slider->setObjectName(QStringLiteral("volume_slider"));
-    volume_slider->setMaximum(200);
-    volume_slider->setPageStep(5);
-    volume_popup->layout()->addWidget(volume_slider);
-
-    volume_button = new VolumeButton();
-    volume_button->setObjectName(QStringLiteral("TogglableStatusBarButton"));
-    volume_button->setFocusPolicy(Qt::NoFocus);
-    volume_button->setCheckable(true);
-    UpdateVolumeUI();
-    connect(volume_slider, &QSlider::valueChanged, this, [this](int percentage) {
-        Settings::values.audio_muted = false;
-        const auto volume = static_cast<u8>(percentage);
-        Settings::values.volume.SetValue(volume);
-        UpdateVolumeUI();
-    });
-    connect(volume_button, &QPushButton::clicked, this, [&] {
-        UpdateVolumeUI();
-        volume_popup->setVisible(!volume_popup->isVisible());
-        QRect rect = volume_button->geometry();
-        QPoint bottomLeft = statusBar()->mapToGlobal(rect.topLeft());
-        bottomLeft.setY(bottomLeft.y() - volume_popup->geometry().height());
-        volume_popup->setGeometry(QRect(bottomLeft, QSize(rect.width(), rect.height())));
-    });
-    volume_button->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(volume_button, &QPushButton::customContextMenuRequested,
-            [this](const QPoint& menu_location) {
-                QMenu context_menu;
-                context_menu.addAction(
-                    Settings::values.audio_muted ? tr("Unmute") : tr("Mute"), [this] {
-                        Settings::values.audio_muted = !Settings::values.audio_muted;
-                        UpdateVolumeUI();
-                    });
-
-                context_menu.addAction(tr("Reset Volume"), [this] {
-                    Settings::values.volume.SetValue(100);
-                    UpdateVolumeUI();
-                });
-
-                context_menu.exec(volume_button->mapToGlobal(menu_location));
-                volume_button->repaint();
-            });
-    connect(volume_button, &VolumeButton::VolumeChanged, this, &GMainWindow::UpdateVolumeUI);
-
-    statusBar()->insertPermanentWidget(0, volume_button);
-
-    // setup AA button
-    aa_status_button = new QPushButton();
-    aa_status_button->setObjectName(QStringLiteral("TogglableStatusBarButton"));
-    aa_status_button->setFocusPolicy(Qt::NoFocus);
-    connect(aa_status_button, &QPushButton::clicked, [&] {
+    // Connect status bar model signals to GMainWindow action slots
+    connect(status_bar_model, &StatusBarModel::rendererClicked, this,
+            &GMainWindow::OnToggleGraphicsAPI);
+    connect(status_bar_model, &StatusBarModel::gpuAccuracyClicked, this,
+            &GMainWindow::OnToggleGpuAccuracy);
+    connect(status_bar_model, &StatusBarModel::dockedClicked, this,
+            &GMainWindow::OnToggleDockedMode);
+    connect(status_bar_model, &StatusBarModel::filterClicked, this,
+            &GMainWindow::OnToggleAdaptingFilter);
+    connect(status_bar_model, &StatusBarModel::aaClicked, [this] {
         auto aa_mode = Settings::values.anti_aliasing.GetValue();
         aa_mode = static_cast<Settings::AntiAliasing>(static_cast<u32>(aa_mode) + 1);
         if (aa_mode == Settings::AntiAliasing::MaxEnum) {
             aa_mode = Settings::AntiAliasing::None;
         }
         Settings::values.anti_aliasing.SetValue(aa_mode);
-        aa_status_button->setChecked(true);
         UpdateAAText();
     });
-    UpdateAAText();
-    aa_status_button->setCheckable(true);
-    aa_status_button->setChecked(true);
-    aa_status_button->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(aa_status_button, &QPushButton::customContextMenuRequested,
-            [this](const QPoint& menu_location) {
-                QMenu context_menu;
-                for (auto const& aa_text_pair : ConfigurationShared::anti_aliasing_texts_map) {
-                    context_menu.addAction(aa_text_pair.second, [this, aa_text_pair] {
-                        Settings::values.anti_aliasing.SetValue(aa_text_pair.first);
-                        UpdateAAText();
-                    });
-                }
-                context_menu.exec(aa_status_button->mapToGlobal(menu_location));
-                aa_status_button->repaint();
-            });
-    statusBar()->insertPermanentWidget(0, aa_status_button);
+    connect(status_bar_model, &StatusBarModel::volumeChanged, this, [this] {
+        Settings::values.audio_muted = false;
+        const auto volume = static_cast<u8>(status_bar_model->GetVolume());
+        Settings::values.volume.SetValue(volume);
+        UpdateVolumeUI();
+    });
+    connect(status_bar_model, &StatusBarModel::muteRequested, this, &GMainWindow::OnMute);
+    connect(status_bar_model, &StatusBarModel::resetVolumeRequested, [this] {
+        Settings::values.volume.SetValue(100);
+        UpdateVolumeUI();
+    });
 
-    // Setup Filter button
-    filter_status_button = new QPushButton();
-    filter_status_button->setObjectName(QStringLiteral("TogglableStatusBarButton"));
-    filter_status_button->setFocusPolicy(Qt::NoFocus);
-    connect(filter_status_button, &QPushButton::clicked, this,
-            &GMainWindow::OnToggleAdaptingFilter);
-    UpdateFilterText();
-    filter_status_button->setCheckable(true);
-    filter_status_button->setChecked(true);
-    filter_status_button->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(filter_status_button, &QPushButton::customContextMenuRequested,
-            [this](const QPoint& menu_location) {
-                QMenu context_menu;
-                for (auto const& filter_text_pair : ConfigurationShared::scaling_filter_texts_map) {
-                    context_menu.addAction(filter_text_pair.second, [this, filter_text_pair] {
-                        Settings::values.scaling_filter.SetValue(filter_text_pair.first);
-                        UpdateFilterText();
-                    });
-                }
-                context_menu.exec(filter_status_button->mapToGlobal(menu_location));
-                filter_status_button->repaint();
-            });
-    statusBar()->insertPermanentWidget(0, filter_status_button);
-
-    // Setup Dock button
-    dock_status_button = new QPushButton();
-    dock_status_button->setObjectName(QStringLiteral("DockingStatusBarButton"));
-    dock_status_button->setFocusPolicy(Qt::NoFocus);
-    connect(dock_status_button, &QPushButton::clicked, this, &GMainWindow::OnToggleDockedMode);
-    dock_status_button->setCheckable(true);
-    UpdateDockedButton();
-    dock_status_button->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(dock_status_button, &QPushButton::customContextMenuRequested,
-            [this](const QPoint& menu_location) {
-                QMenu context_menu;
-
-                for (auto const& pair : ConfigurationShared::use_docked_mode_texts_map) {
-                    context_menu.addAction(pair.second, [this, &pair] {
-                        if (pair.first != Settings::values.use_docked_mode.GetValue()) {
-                            OnToggleDockedMode();
-                        }
-                    });
-                }
-                context_menu.exec(dock_status_button->mapToGlobal(menu_location));
-                dock_status_button->repaint();
-            });
-    statusBar()->insertPermanentWidget(0, dock_status_button);
-
-    // Setup GPU Accuracy button
-    gpu_accuracy_button = new QPushButton();
-    gpu_accuracy_button->setObjectName(QStringLiteral("GPUStatusBarButton"));
-    gpu_accuracy_button->setCheckable(true);
-    gpu_accuracy_button->setFocusPolicy(Qt::NoFocus);
-    connect(gpu_accuracy_button, &QPushButton::clicked, this, &GMainWindow::OnToggleGpuAccuracy);
-    UpdateGPUAccuracyButton();
-    gpu_accuracy_button->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(gpu_accuracy_button, &QPushButton::customContextMenuRequested,
-            [this](const QPoint& menu_location) {
-                QMenu context_menu;
-
-                for (auto const& gpu_accuracy_pair : ConfigurationShared::gpu_accuracy_texts_map) {
-                    if (gpu_accuracy_pair.first == Settings::GpuAccuracy::Extreme) {
-                        continue;
-                    }
-                    context_menu.addAction(gpu_accuracy_pair.second, [this, gpu_accuracy_pair] {
-                        Settings::values.gpu_accuracy.SetValue(gpu_accuracy_pair.first);
-                        UpdateGPUAccuracyButton();
-                    });
-                }
-                context_menu.exec(gpu_accuracy_button->mapToGlobal(menu_location));
-                gpu_accuracy_button->repaint();
-            });
-    statusBar()->insertPermanentWidget(0, gpu_accuracy_button);
-
-    // Setup Renderer API button
-    renderer_status_button = new QPushButton();
-    renderer_status_button->setObjectName(QStringLiteral("RendererStatusBarButton"));
-    renderer_status_button->setCheckable(true);
-    renderer_status_button->setFocusPolicy(Qt::NoFocus);
-    connect(renderer_status_button, &QPushButton::clicked, this, &GMainWindow::OnToggleGraphicsAPI);
-    UpdateAPIText();
-    renderer_status_button->setCheckable(true);
-    renderer_status_button->setChecked(Settings::values.renderer_backend.GetValue() ==
-                                       Settings::RendererBackend::Vulkan);
-    renderer_status_button->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(renderer_status_button, &QPushButton::customContextMenuRequested,
-            [this](const QPoint& menu_location) {
-                QMenu context_menu;
-
-                for (auto const& renderer_backend_pair :
-                     ConfigurationShared::renderer_backend_texts_map) {
-                    if (renderer_backend_pair.first == Settings::RendererBackend::Null) {
-                        continue;
-                    }
-                    context_menu.addAction(
-                        renderer_backend_pair.second, [this, renderer_backend_pair] {
-                            Settings::values.renderer_backend.SetValue(renderer_backend_pair.first);
-                            UpdateAPIText();
-                        });
-                }
-                context_menu.exec(renderer_status_button->mapToGlobal(menu_location));
-                renderer_status_button->repaint();
-            });
-    statusBar()->insertPermanentWidget(0, renderer_status_button);
+    UpdateStatusButtons();
 
     statusBar()->setVisible(true);
     setStyleSheet(QStringLiteral("QStatusBar::item{border: none;}"));
@@ -2018,7 +1845,7 @@ void GMainWindow::BootGame(const QString& filename, Service::AM::FrontendAppletP
         game_list_placeholder->hide();
     }
     status_bar_update_timer.start(500);
-    renderer_status_button->setDisabled(true);
+    status_bar_model->SetRendererEnabled(false);
 
     if (UISettings::values.hide_mouse || Settings::values.mouse_panning) {
         render_window->installEventFilter(render_window);
@@ -2168,7 +1995,7 @@ void GMainWindow::OnEmulationStopped() {
         game_list->show();
     }
     game_list->SetFilterFocus();
-    tas_label->clear();
+    status_bar_model->SetTasText(QString{});
     input_subsystem->GetTas()->Stop();
     OnTasStateChanged();
     render_window->FinalizeCamera();
@@ -2185,15 +2012,12 @@ void GMainWindow::OnEmulationStopped() {
 
     // Disable status bar updates
     status_bar_update_timer.stop();
-    shader_building_label->setVisible(false);
-    res_scale_label->setVisible(false);
-    emu_speed_label->setVisible(false);
-    game_fps_label->setVisible(false);
-    emu_frametime_label->setVisible(false);
-    renderer_status_button->setEnabled(!UISettings::values.has_broken_vulkan);
+    status_bar_model->SetShaderBuildingVisible(false);
+    status_bar_model->SetPerfVisible(false);
+    status_bar_model->SetRendererEnabled(!UISettings::values.has_broken_vulkan);
 
-    if (!firmware_label->text().isEmpty()) {
-        firmware_label->setVisible(true);
+    if (!status_bar_model->GetFirmwareText().isEmpty()) {
+        status_bar_model->SetFirmwareVisible(true);
     }
 
     current_game_path.clear();
@@ -3835,7 +3659,7 @@ void GMainWindow::OnConfigure() {
     }
 
     if (!UISettings::values.has_broken_vulkan) {
-        renderer_status_button->setEnabled(!emulation_running);
+        status_bar_model->SetRendererEnabled(!emulation_running);
     }
 
     UpdateStatusButtons();
@@ -3977,7 +3801,6 @@ void GMainWindow::OnToggleAdaptingFilter() {
         filter = Settings::ScalingFilter::NearestNeighbor;
     }
     Settings::values.scaling_filter.SetValue(filter);
-    filter_status_button->setChecked(true);
     UpdateFilterText();
 }
 
@@ -3993,7 +3816,7 @@ void GMainWindow::OnToggleGraphicsAPI() {
 #endif
     }
     Settings::values.renderer_backend.SetValue(api);
-    renderer_status_button->setChecked(api == Settings::RendererBackend::Vulkan);
+    status_bar_model->SetRendererChecked(api == Settings::RendererBackend::Vulkan);
     UpdateAPIText();
 }
 
@@ -4627,9 +4450,9 @@ void GMainWindow::UpdateStatusBar() {
     }
 
     if (Settings::values.tas_enable) {
-        tas_label->setText(GetTasStateDescription());
+        status_bar_model->SetTasText(GetTasStateDescription());
     } else {
-        tas_label->clear();
+        status_bar_model->SetTasText(QString{});
     }
 
     auto results = system->GetAndResetPerfStats();
@@ -4637,52 +4460,55 @@ void GMainWindow::UpdateStatusBar() {
     const int shaders_building = shader_notify.ShadersBuilding();
 
     if (shaders_building > 0) {
-        shader_building_label->setText(tr("Building: %n shader(s)", "", shaders_building));
-        shader_building_label->setVisible(true);
+        status_bar_model->SetShaderBuildingText(
+            tr("Building: %n shader(s)", "", shaders_building));
+        status_bar_model->SetShaderBuildingVisible(true);
     } else {
-        shader_building_label->setVisible(false);
+        status_bar_model->SetShaderBuildingVisible(false);
     }
 
     const auto res_info = Settings::values.resolution_info;
     const auto res_scale = res_info.up_factor;
-    res_scale_label->setText(
+    status_bar_model->SetResScaleText(
         tr("Scale: %1x", "%1 is the resolution scaling factor").arg(res_scale));
 
     if (Settings::values.use_speed_limit.GetValue()) {
-        emu_speed_label->setText(tr("Speed: %1% / %2%")
-                                     .arg(results.emulation_speed * 100.0, 0, 'f', 0)
-                                     .arg(Settings::values.speed_limit.GetValue()));
+        status_bar_model->SetEmuSpeedText(
+            tr("Speed: %1% / %2%")
+                .arg(results.emulation_speed * 100.0, 0, 'f', 0)
+                .arg(Settings::values.speed_limit.GetValue()));
     } else {
-        emu_speed_label->setText(tr("Speed: %1%").arg(results.emulation_speed * 100.0, 0, 'f', 0));
+        status_bar_model->SetEmuSpeedText(
+            tr("Speed: %1%").arg(results.emulation_speed * 100.0, 0, 'f', 0));
     }
     if (!Settings::values.use_speed_limit) {
-        game_fps_label->setText(
-            tr("Game: %1 FPS (Unlocked)").arg(std::round(results.average_game_fps), 0, 'f', 0));
+        status_bar_model->SetGameFpsText(
+            tr("Game: %1 FPS (Unlocked)")
+                .arg(std::round(results.average_game_fps), 0, 'f', 0));
     } else {
-        game_fps_label->setText(
+        status_bar_model->SetGameFpsText(
             tr("Game: %1 FPS").arg(std::round(results.average_game_fps), 0, 'f', 0));
     }
-    emu_frametime_label->setText(tr("Frame: %1 ms").arg(results.frametime * 1000.0, 0, 'f', 2));
+    status_bar_model->SetEmuFrametimeText(
+        tr("Frame: %1 ms").arg(results.frametime * 1000.0, 0, 'f', 2));
 
-    res_scale_label->setVisible(true);
-    emu_speed_label->setVisible(!Settings::values.use_multi_core.GetValue());
-    game_fps_label->setVisible(true);
-    emu_frametime_label->setVisible(true);
-    firmware_label->setVisible(false);
+    status_bar_model->SetPerfVisible(true);
+    status_bar_model->SetEmuSpeedVisible(!Settings::values.use_multi_core.GetValue());
+    status_bar_model->SetFirmwareVisible(false);
 }
 
 void GMainWindow::UpdateGPUAccuracyButton() {
     const auto gpu_accuracy = Settings::values.gpu_accuracy.GetValue();
     const auto gpu_accuracy_text =
         ConfigurationShared::gpu_accuracy_texts_map.find(gpu_accuracy)->second;
-    gpu_accuracy_button->setText(gpu_accuracy_text.toUpper());
-    gpu_accuracy_button->setChecked(gpu_accuracy != Settings::GpuAccuracy::Normal);
+    status_bar_model->SetGpuAccuracyText(gpu_accuracy_text.toUpper());
+    status_bar_model->SetGpuAccuracyChecked(gpu_accuracy != Settings::GpuAccuracy::Normal);
 }
 
 void GMainWindow::UpdateDockedButton() {
     const auto console_mode = Settings::values.use_docked_mode.GetValue();
-    dock_status_button->setChecked(Settings::IsDockedMode());
-    dock_status_button->setText(
+    status_bar_model->SetDockedChecked(Settings::IsDockedMode());
+    status_bar_model->SetDockedText(
         ConfigurationShared::use_docked_mode_texts_map.find(console_mode)->second.toUpper());
 }
 
@@ -4690,7 +4516,7 @@ void GMainWindow::UpdateAPIText() {
     const auto api = Settings::values.renderer_backend.GetValue();
     const auto renderer_status_text =
         ConfigurationShared::renderer_backend_texts_map.find(api)->second;
-    renderer_status_button->setText(
+    status_bar_model->SetRendererText(
         api == Settings::RendererBackend::OpenGL
             ? tr("%1 %2").arg(renderer_status_text.toUpper(),
                               ConfigurationShared::shader_backend_texts_map
@@ -4702,33 +4528,36 @@ void GMainWindow::UpdateAPIText() {
 void GMainWindow::UpdateFilterText() {
     const auto filter = Settings::values.scaling_filter.GetValue();
     const auto filter_text = ConfigurationShared::scaling_filter_texts_map.find(filter)->second;
-    filter_status_button->setText(filter == Settings::ScalingFilter::Fsr ? tr("FSR")
-                                                                         : filter_text.toUpper());
+    status_bar_model->SetFilterText(filter == Settings::ScalingFilter::Fsr
+                                        ? tr("FSR")
+                                        : filter_text.toUpper());
 }
 
 void GMainWindow::UpdateAAText() {
     const auto aa_mode = Settings::values.anti_aliasing.GetValue();
     const auto aa_text = ConfigurationShared::anti_aliasing_texts_map.find(aa_mode)->second;
-    aa_status_button->setText(aa_mode == Settings::AntiAliasing::None
-                                  ? QStringLiteral(QT_TRANSLATE_NOOP("GMainWindow", "NO AA"))
-                                  : aa_text.toUpper());
+    status_bar_model->SetAAText(
+        aa_mode == Settings::AntiAliasing::None
+            ? QStringLiteral(QT_TRANSLATE_NOOP("GMainWindow", "NO AA"))
+            : aa_text.toUpper());
 }
 
 void GMainWindow::UpdateVolumeUI() {
     const auto volume_value = static_cast<int>(Settings::values.volume.GetValue());
-    volume_slider->setValue(volume_value);
+    status_bar_model->SetVolume(volume_value);
     if (Settings::values.audio_muted) {
-        volume_button->setChecked(false);
-        volume_button->setText(tr("VOLUME: MUTE"));
+        status_bar_model->SetMuted(true);
+        status_bar_model->SetVolumeText(tr("VOLUME: MUTE"));
     } else {
-        volume_button->setChecked(true);
-        volume_button->setText(tr("VOLUME: %1%", "Volume percentage (e.g. 50%)").arg(volume_value));
+        status_bar_model->SetMuted(false);
+        status_bar_model->SetVolumeText(
+            tr("VOLUME: %1%", "Volume percentage (e.g. 50%)").arg(volume_value));
     }
 }
 
 void GMainWindow::UpdateStatusButtons() {
-    renderer_status_button->setChecked(Settings::values.renderer_backend.GetValue() ==
-                                       Settings::RendererBackend::Vulkan);
+    status_bar_model->SetRendererChecked(Settings::values.renderer_backend.GetValue() ==
+                                         Settings::RendererBackend::Vulkan);
     UpdateAPIText();
     UpdateGPUAccuracyButton();
     UpdateDockedButton();
@@ -4821,19 +4650,19 @@ void GMainWindow::SetFirmwareVersion() {
 
     if (result.IsError() || !CheckFirmwarePresence()) {
         LOG_INFO(Frontend, "Installed firmware: No firmware available");
-        firmware_label->setVisible(false);
+        status_bar_model->SetFirmwareVisible(false);
         return;
     }
 
-    firmware_label->setVisible(true);
+    status_bar_model->SetFirmwareVisible(true);
 
     const std::string display_version(firmware_data.display_version.data());
     const std::string display_title(firmware_data.display_title.data());
 
     LOG_INFO(Frontend, "Installed firmware: {}", display_title);
 
-    firmware_label->setText(QString::fromStdString(display_version));
-    firmware_label->setToolTip(QString::fromStdString(display_title));
+    status_bar_model->SetFirmwareText(QString::fromStdString(display_version));
+    status_bar_model->SetFirmwareTooltip(QString::fromStdString(display_title));
 }
 
 bool GMainWindow::SelectRomFSDumpTarget(const FileSys::ContentProvider& installed, u64 program_id,
@@ -5163,32 +4992,6 @@ Service::AM::FrontendAppletParameters GMainWindow::LibraryAppletParameters(
         .applet_id = applet_id,
         .applet_type = Service::AM::AppletType::LibraryApplet,
     };
-}
-
-void VolumeButton::wheelEvent(QWheelEvent* event) {
-
-    int num_degrees = event->angleDelta().y() / 8;
-    int num_steps = (num_degrees / 15) * scroll_multiplier;
-    // Stated in QT docs: Most mouse types work in steps of 15 degrees, in which case the delta
-    // value is a multiple of 120; i.e., 120 units * 1/8 = 15 degrees.
-
-    if (num_steps > 0) {
-        Settings::values.volume.SetValue(
-            std::min(200, Settings::values.volume.GetValue() + num_steps));
-    } else {
-        Settings::values.volume.SetValue(
-            std::max(0, Settings::values.volume.GetValue() + num_steps));
-    }
-
-    scroll_multiplier = std::min(MaxMultiplier, scroll_multiplier * 2);
-    scroll_timer.start(100); // reset the multiplier if no scroll event occurs within 100 ms
-
-    emit VolumeChanged();
-    event->accept();
-}
-
-void VolumeButton::ResetMultiplier() {
-    scroll_multiplier = 1;
 }
 
 #ifdef main

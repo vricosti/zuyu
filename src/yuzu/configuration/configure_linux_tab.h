@@ -3,19 +3,22 @@
 
 #pragma once
 
+#include <memory>
+#include <vector>
+
 #include <QWidget>
+#include "yuzu/configuration/configuration_shared.h"
 
 namespace Core {
 class System;
 }
 
-namespace Ui {
-class ConfigureLinuxTab;
-}
-
 namespace ConfigurationShared {
 class Builder;
 }
+
+class QQuickWidget;
+class SettingsModel;
 
 class ConfigureLinuxTab : public ConfigurationShared::Tab {
     Q_OBJECT
@@ -31,14 +34,7 @@ public:
     void SetConfiguration() override;
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    void Setup(const ConfigurationShared::Builder& builder);
-
-    std::unique_ptr<Ui::ConfigureLinuxTab> ui;
-
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* settings_model = nullptr;
     const Core::System& system;
-
-    std::vector<std::function<void(bool)>> apply_funcs{};
 };

@@ -1,32 +1,70 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <QCheckBox>
+#include <QDialogButtonBox>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QSpinBox>
+#include <QVBoxLayout>
+
 #include "common/settings.h"
 #include "hid_core/frontend/emulated_controller.h"
 #include "hid_core/hid_core.h"
 #include "hid_core/hid_types.h"
-#include "ui_configure_vibration.h"
 #include "yuzu/configuration/configure_vibration.h"
 
 ConfigureVibration::ConfigureVibration(QWidget* parent, Core::HID::HIDCore& hid_core_)
-    : QDialog(parent), ui(std::make_unique<Ui::ConfigureVibration>()), hid_core{hid_core_} {
-    ui->setupUi(this);
+    : QDialog(parent), hid_core{hid_core_} {
+    setWindowTitle(tr("Configure Vibration"));
 
-    vibration_groupboxes = {
-        ui->vibrationGroupPlayer1, ui->vibrationGroupPlayer2, ui->vibrationGroupPlayer3,
-        ui->vibrationGroupPlayer4, ui->vibrationGroupPlayer5, ui->vibrationGroupPlayer6,
-        ui->vibrationGroupPlayer7, ui->vibrationGroupPlayer8,
-    };
+    auto* main_layout = new QVBoxLayout(this);
 
-    vibration_spinboxes = {
-        ui->vibrationSpinPlayer1, ui->vibrationSpinPlayer2, ui->vibrationSpinPlayer3,
-        ui->vibrationSpinPlayer4, ui->vibrationSpinPlayer5, ui->vibrationSpinPlayer6,
-        ui->vibrationSpinPlayer7, ui->vibrationSpinPlayer8,
-    };
+    // Info label
+    main_layout->addWidget(
+        new QLabel(tr("Press any controller button to vibrate the controller."), this));
+
+    // Vibration group
+    auto* vibration_group = new QGroupBox(tr("Vibration"), this);
+    auto* vibration_layout = new QVBoxLayout(vibration_group);
+    vibration_layout->setContentsMargins(9, 9, 9, 9);
+
+    // Players 1-4
+    auto* row1_layout = new QHBoxLayout;
+    row1_layout->setContentsMargins(0, 0, 0, 0);
+
+    // Players 5-8
+    auto* row2_layout = new QHBoxLayout;
+    row2_layout->setContentsMargins(0, 0, 0, 0);
 
     const auto& players = Settings::values.players.GetValue();
 
     for (std::size_t i = 0; i < NUM_PLAYERS; ++i) {
+        auto* group = new QGroupBox(tr("Player %1").arg(i + 1), this);
+        group->setCheckable(true);
+
+        auto* group_layout = new QHBoxLayout(group);
+        group_layout->setContentsMargins(3, 3, 3, 3);
+
+        auto* spinbox = new QSpinBox(this);
+        spinbox->setMinimumSize(68, 21);
+        spinbox->setMaximumWidth(68);
+        spinbox->setSuffix(QStringLiteral("%"));
+        spinbox->setMinimum(1);
+        spinbox->setMaximum(150);
+        spinbox->setValue(100);
+        group_layout->addWidget(spinbox);
+
+        vibration_groupboxes[i] = group;
+        vibration_spinboxes[i] = spinbox;
+
+        if (i < 4) {
+            row1_layout->addWidget(group);
+        } else {
+            row2_layout->addWidget(group);
+        }
+
         auto controller = hid_core.GetEmulatedControllerByIndex(i);
         Core::HID::ControllerUpdateCallback engine_callback{
             .on_change = [this,
@@ -38,14 +76,30 @@ ConfigureVibration::ConfigureVibration(QWidget* parent, Core::HID::HIDCore& hid_
         vibration_spinboxes[i]->setValue(players[i].vibration_strength);
     }
 
-    ui->checkBoxAccurateVibration->setChecked(
+    vibration_layout->addLayout(row1_layout);
+    vibration_layout->addLayout(row2_layout);
+    main_layout->addWidget(vibration_group);
+
+    // Settings group
+    auto* settings_group = new QGroupBox(tr("Settings"), this);
+    auto* settings_layout = new QVBoxLayout(settings_group);
+
+    accurate_vibration_checkbox = new QCheckBox(tr("Enable Accurate Vibration"), this);
+    accurate_vibration_checkbox->setChecked(
         Settings::values.enable_accurate_vibrations.GetValue());
-
     if (!Settings::IsConfiguringGlobal()) {
-        ui->checkBoxAccurateVibration->setDisabled(true);
+        accurate_vibration_checkbox->setDisabled(true);
     }
+    settings_layout->addWidget(accurate_vibration_checkbox);
 
-    RetranslateUI();
+    main_layout->addWidget(settings_group);
+    main_layout->addStretch();
+
+    // Button box
+    auto* button_box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    connect(button_box, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(button_box, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    main_layout->addWidget(button_box);
 }
 
 ConfigureVibration::~ConfigureVibration() {
@@ -66,19 +120,7 @@ void ConfigureVibration::ApplyConfiguration() {
     }
 
     Settings::values.enable_accurate_vibrations.SetValue(
-        ui->checkBoxAccurateVibration->isChecked());
-}
-
-void ConfigureVibration::changeEvent(QEvent* event) {
-    if (event->type() == QEvent::LanguageChange) {
-        RetranslateUI();
-    }
-
-    QDialog::changeEvent(event);
-}
-
-void ConfigureVibration::RetranslateUI() {
-    ui->retranslateUi(this);
+        accurate_vibration_checkbox->isChecked());
 }
 
 void ConfigureVibration::VibrateController(Core::HID::ControllerTriggerType type,

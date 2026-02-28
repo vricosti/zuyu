@@ -3,21 +3,16 @@
 
 #pragma once
 
-#include <memory>
 #include <vector>
 #include <QWidget>
 #include "yuzu/configuration/configuration_shared.h"
-#include "yuzu/configuration/shared_translation.h"
-
-class QComboBox;
 
 namespace Core {
 class System;
 }
 
-namespace Ui {
-class ConfigureCpu;
-}
+class QQuickWidget;
+class SettingsModel;
 
 namespace ConfigurationShared {
 class Builder;
@@ -36,20 +31,9 @@ public:
     void SetConfiguration() override;
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    void UpdateGroup(int index);
-
-    void Setup(const ConfigurationShared::Builder& builder);
-
-    std::unique_ptr<Ui::ConfigureCpu> ui;
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* cpu_model = nullptr;
+    SettingsModel* unsafe_model = nullptr;
 
     const Core::System& system;
-
-    const ConfigurationShared::ComboboxTranslationMap& combobox_translations;
-    std::vector<std::function<void(bool)>> apply_funcs{};
-
-    QComboBox* accuracy_combobox;
-    QComboBox* backend_combobox;
 };

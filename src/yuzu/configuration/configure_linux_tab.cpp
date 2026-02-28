@@ -1,75 +1,54 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <QQmlContext>
+#include <QQuickWidget>
+#include <QVBoxLayout>
+
+#include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/core.h"
-#include "ui_configure_linux_tab.h"
-#include "yuzu/configuration/configuration_shared.h"
 #include "yuzu/configuration/configure_linux_tab.h"
-#include "yuzu/configuration/shared_widget.h"
+#include "yuzu/configuration/settings_model.h"
+#include "yuzu/qml_bridge.h"
 
-ConfigureLinuxTab::ConfigureLinuxTab(const Core::System& system_,
-                                     std::shared_ptr<std::vector<ConfigurationShared::Tab*>> group_,
-                                     const ConfigurationShared::Builder& builder, QWidget* parent)
-    : Tab(group_, parent), ui(std::make_unique<Ui::ConfigureLinuxTab>()), system{system_} {
-    ui->setupUi(this);
+ConfigureLinuxTab::ConfigureLinuxTab(
+    const Core::System& system_,
+    std::shared_ptr<std::vector<ConfigurationShared::Tab*>> group_,
+    const ConfigurationShared::Builder& builder, QWidget* parent)
+    : Tab(group_, parent), system{system_} {
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
 
-    Setup(builder);
+    settings_model = new SettingsModel(this);
+    settings_model->populate(Settings::Category::Linux);
+    settings_model->setRuntimeLock(system.IsPoweredOn());
 
-    SetConfiguration();
+    quick_widget = new QQuickWidget(this);
+    quick_widget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+
+    QQmlContext* ctx = quick_widget->rootContext();
+    QmlBridge::SetupContext(ctx);
+    ctx->setContextProperty(QStringLiteral("settingsModel"), settings_model);
+    ctx->setContextProperty(QStringLiteral("pageTitle"), tr("Linux"));
+
+    quick_widget->setSource(QUrl(QStringLiteral("qrc:/qml/qml/SettingsPage.qml")));
+
+    if (quick_widget->status() == QQuickWidget::Error) {
+        for (const auto& error : quick_widget->errors()) {
+            LOG_ERROR(Frontend, "ConfigureLinuxTab QML Error: {}",
+                      error.toString().toStdString());
+        }
+    }
+
+    layout->addWidget(quick_widget);
+    setLayout(layout);
 }
 
 ConfigureLinuxTab::~ConfigureLinuxTab() = default;
 
 void ConfigureLinuxTab::SetConfiguration() {}
-void ConfigureLinuxTab::Setup(const ConfigurationShared::Builder& builder) {
-    QLayout& linux_layout = *ui->linux_widget->layout();
-
-    std::map<u32, QWidget*> linux_hold{};
-
-    std::vector<Settings::BasicSetting*> settings;
-    const auto push = [&](Settings::Category category) {
-        for (const auto setting : Settings::values.linkage.by_category[category]) {
-            settings.push_back(setting);
-        }
-    };
-
-    push(Settings::Category::Linux);
-
-    for (auto* setting : settings) {
-        auto* widget = builder.BuildWidget(setting, apply_funcs);
-
-        if (widget == nullptr) {
-            continue;
-        }
-        if (!widget->Valid()) {
-            widget->deleteLater();
-            continue;
-        }
-
-        linux_hold.insert({setting->Id(), widget});
-    }
-
-    for (const auto& [id, widget] : linux_hold) {
-        linux_layout.addWidget(widget);
-    }
-}
 
 void ConfigureLinuxTab::ApplyConfiguration() {
-    const bool is_powered_on = system.IsPoweredOn();
-    for (const auto& apply_func : apply_funcs) {
-        apply_func(is_powered_on);
-    }
-}
-
-void ConfigureLinuxTab::changeEvent(QEvent* event) {
-    if (event->type() == QEvent::LanguageChange) {
-        RetranslateUI();
-    }
-
-    QWidget::changeEvent(event);
-}
-
-void ConfigureLinuxTab::RetranslateUI() {
-    ui->retranslateUi(this);
+    // Values are already written to settings via LoadString in SettingsModel
 }

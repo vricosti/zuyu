@@ -8,22 +8,19 @@
 #include <vector>
 
 #include <QDialog>
-#include <QList>
 
-#include "configuration/shared_widget.h"
 #include "core/file_sys/vfs/vfs_types.h"
 #include "frontend_common/config.h"
 #include "vk_device_info.h"
 #include "yuzu/configuration/configuration_shared.h"
 #include "yuzu/configuration/qt_config.h"
-#include "yuzu/configuration/shared_translation.h"
 
 namespace Core {
 class System;
 }
 
-namespace InputCommon {
-class InputSubsystem;
+namespace ConfigurationShared {
+class Builder;
 }
 
 class ConfigurePerGameAddons;
@@ -35,44 +32,44 @@ class ConfigureInputPerGame;
 class ConfigureLinuxTab;
 class ConfigureSystem;
 
+class QDialogButtonBox;
 class QGraphicsScene;
-class QStandardItem;
-class QStandardItemModel;
-class QTreeView;
-class QVBoxLayout;
-
-namespace Ui {
-class ConfigurePerGame;
-}
+class QGraphicsView;
+class QLabel;
+class QLineEdit;
+class QTabWidget;
 
 class ConfigurePerGame : public QDialog {
     Q_OBJECT
 
 public:
-    // Cannot use std::filesystem::path due to https://bugreports.qt.io/browse/QTBUG-73263
     explicit ConfigurePerGame(QWidget* parent, u64 title_id_, const std::string& file_name,
                               std::vector<VkDeviceInfo::Record>& vk_device_records,
                               Core::System& system_);
     ~ConfigurePerGame() override;
 
-    /// Save all button configurations to settings file
     void ApplyConfiguration();
 
     void LoadFromFile(FileSys::VirtualFile file_);
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
     void HandleApplyButtonClicked();
-
     void LoadConfiguration();
 
-    std::unique_ptr<Ui::ConfigurePerGame> ui;
     FileSys::VirtualFile file;
     u64 title_id;
 
     QGraphicsScene* scene;
+    QGraphicsView* icon_view;
+    QLineEdit* display_name;
+    QLineEdit* display_developer;
+    QLineEdit* display_version;
+    QLineEdit* display_title_id;
+    QLineEdit* display_format;
+    QLineEdit* display_size;
+    QLineEdit* display_filename;
+    QTabWidget* tab_widget;
+    QDialogButtonBox* button_box;
 
     std::unique_ptr<QtConfig> game_config;
 

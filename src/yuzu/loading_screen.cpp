@@ -2,79 +2,71 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <unordered_map>
-#include <QBuffer>
-#include <QByteArray>
-#include <QGraphicsOpacityEffect>
-#include <QIODevice>
-#include <QImage>
-#include <QPainter>
 #include <QPixmap>
-#include <QPropertyAnimation>
-#include <QStyleOption>
+#include <QTime>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QQuickWidget>
+#include <QTimer>
+#include <QVBoxLayout>
+
+#include "common/logging/log.h"
 #include "core/frontend/framebuffer_layout.h"
 #include "core/loader/loader.h"
-#include "ui_loading_screen.h"
 #include "video_core/rasterizer_interface.h"
 #include "yuzu/loading_screen.h"
-
-// Mingw seems to not have QMovie at all. If QMovie is missing then use a single frame instead of an
-// showing the full animation
-#if !YUZU_QT_MOVIE_MISSING
-#include <QMovie>
-#endif
-
-constexpr char PROGRESSBAR_STYLE_PREPARE[] = R"(
-QProgressBar {}
-QProgressBar::chunk {})";
-
-constexpr char PROGRESSBAR_STYLE_BUILD[] = R"(
-QProgressBar {
-  background-color: black;
-  border: 2px solid white;
-  border-radius: 4px;
-  padding: 2px;
-}
-QProgressBar::chunk {
-  background-color: #ff3c28;
-  width: 1px;
-})";
-
-constexpr char PROGRESSBAR_STYLE_COMPLETE[] = R"(
-QProgressBar {
-  background-color: #0ab9e6;
-  border: 2px solid white;
-  border-radius: 4px;
-  padding: 2px;
-}
-QProgressBar::chunk {
-  background-color: #ff3c28;
-})";
+#include "yuzu/loading_screen_model.h"
+#include "yuzu/qml_bridge.h"
 
 LoadingScreen::LoadingScreen(QWidget* parent)
-    : QWidget(parent), ui(std::make_unique<Ui::LoadingScreen>()),
-      previous_stage(VideoCore::LoadCallbackStage::Complete) {
-    ui->setupUi(this);
+    : QWidget(parent), previous_stage(VideoCore::LoadCallbackStage::Complete) {
+
     setMinimumSize(Layout::MinimumSize::Width, Layout::MinimumSize::Height);
 
-    // Create a fade out effect to hide this loading screen widget.
-    // When fading opacity, it will fade to the parent widgets background color, which is why we
-    // create an internal widget named fade_widget that we use the effect on, while keeping the
-    // loading screen widget's background color black. This way we can create a fade to black effect
-    opacity_effect = new QGraphicsOpacityEffect(this);
-    opacity_effect->setOpacity(1);
-    ui->fade_parent->setGraphicsEffect(opacity_effect);
-    fadeout_animation = std::make_unique<QPropertyAnimation>(opacity_effect, "opacity");
-    fadeout_animation->setDuration(500);
-    fadeout_animation->setStartValue(1);
-    fadeout_animation->setEndValue(0);
-    fadeout_animation->setEasingCurve(QEasingCurve::OutBack);
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
 
-    // After the fade completes, hide the widget and reset the opacity
-    connect(fadeout_animation.get(), &QPropertyAnimation::finished, [this] {
-        hide();
-        opacity_effect->setOpacity(1);
-        emit Hidden();
+    model = new LoadingScreenModel(this);
+    image_provider = new LoadingScreenImageProvider();
+
+    quick_widget = new QQuickWidget(this);
+    quick_widget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+
+    // Register image provider (ownership transferred to QML engine)
+    quick_widget->engine()->addImageProvider(QStringLiteral("loadingscreen"), image_provider);
+
+    QQmlContext* ctx = quick_widget->rootContext();
+    QmlBridge::SetupContext(ctx);
+    ctx->setContextProperty(QStringLiteral("loadingModel"), model);
+
+    quick_widget->setSource(QUrl(QStringLiteral("qrc:/qml/qml/LoadingScreen.qml")));
+
+    if (quick_widget->status() == QQuickWidget::Error) {
+        for (const auto& error : quick_widget->errors()) {
+            LOG_ERROR(Frontend, "LoadingScreen QML Error: {}", error.toString().toStdString());
+        }
+    }
+
+    layout->addWidget(quick_widget);
+    setLayout(layout);
+
+    // Set up fade timer for smooth animation
+    fade_timer = new QTimer(this);
+    fade_timer->setInterval(16); // ~60fps
+    connect(fade_timer, &QTimer::timeout, this, [this] {
+        fade_opacity -= 0.04; // ~500ms total fade
+        if (fade_opacity <= 0.0) {
+            fade_opacity = 0.0;
+            fade_timer->stop();
+            hide();
+            model->SetFadeOpacity(1.0);
+            fade_opacity = 1.0;
+            emit Hidden();
+        } else {
+            model->SetFadeOpacity(fade_opacity);
+        }
     });
+
     connect(this, &LoadingScreen::LoadProgress, this, &LoadingScreen::OnLoadProgress,
             Qt::QueuedConnection);
     qRegisterMetaType<VideoCore::LoadCallbackStage>();
@@ -84,11 +76,6 @@ LoadingScreen::LoadingScreen(QWidget* parent)
         {VideoCore::LoadCallbackStage::Build, tr("Loading Shaders %1 / %2")},
         {VideoCore::LoadCallbackStage::Complete, tr("Launching...")},
     };
-    progressbar_style = {
-        {VideoCore::LoadCallbackStage::Prepare, PROGRESSBAR_STYLE_PREPARE},
-        {VideoCore::LoadCallbackStage::Build, PROGRESSBAR_STYLE_BUILD},
-        {VideoCore::LoadCallbackStage::Complete, PROGRESSBAR_STYLE_COMPLETE},
-    };
 }
 
 LoadingScreen::~LoadingScreen() = default;
@@ -96,71 +83,65 @@ LoadingScreen::~LoadingScreen() = default;
 void LoadingScreen::Prepare(Loader::AppLoader& loader) {
     std::vector<u8> buffer;
     if (loader.ReadBanner(buffer) == Loader::ResultStatus::Success) {
-#ifdef YUZU_QT_MOVIE_MISSING
         QPixmap map;
-        map.loadFromData(buffer.data(), buffer.size());
-        ui->banner->setPixmap(map);
-#else
-        backing_mem = std::make_unique<QByteArray>(reinterpret_cast<char*>(buffer.data()),
-                                                   static_cast<int>(buffer.size()));
-        backing_buf = std::make_unique<QBuffer>(backing_mem.get());
-        backing_buf->open(QIODevice::ReadOnly);
-        animation = std::make_unique<QMovie>(backing_buf.get(), QByteArray());
-        animation->start();
-        ui->banner->setMovie(animation.get());
-#endif
+        map.loadFromData(buffer.data(), static_cast<uint>(buffer.size()));
+        image_provider->SetBanner(map);
+        model->SetBannerAvailable(true);
         buffer.clear();
     }
     if (loader.ReadLogo(buffer) == Loader::ResultStatus::Success) {
         QPixmap map;
         map.loadFromData(buffer.data(), static_cast<uint>(buffer.size()));
-        ui->logo->setPixmap(map);
+        image_provider->SetLogo(map);
+        model->SetLogoAvailable(true);
     }
 
     slow_shader_compile_start = false;
+    fade_opacity = 1.0;
+    model->SetFadeOpacity(1.0);
     OnLoadProgress(VideoCore::LoadCallbackStage::Prepare, 0, 0);
 }
 
 void LoadingScreen::OnLoadComplete() {
-    fadeout_animation->start(QPropertyAnimation::KeepWhenStopped);
+    fade_timer->start();
 }
 
 void LoadingScreen::OnLoadProgress(VideoCore::LoadCallbackStage stage, std::size_t value,
                                    std::size_t total) {
     using namespace std::chrono;
     const auto now = steady_clock::now();
-    // reset the timer if the stage changes
+
+    // Reset the timer if the stage changes
     if (stage != previous_stage) {
-        ui->progress_bar->setStyleSheet(QString::fromUtf8(progressbar_style[stage]));
-        // Hide the progress bar during the prepare stage
         if (stage == VideoCore::LoadCallbackStage::Prepare) {
-            ui->progress_bar->hide();
+            model->SetProgressVisible(false);
         } else {
-            ui->progress_bar->show();
+            model->SetProgressVisible(true);
         }
+        model->SetStage(static_cast<int>(stage));
         previous_stage = stage;
-        // reset back to fast shader compiling since the stage changed
         slow_shader_compile_start = false;
     }
-    // update the max of the progress bar if the number of shaders change
+
+    // Update max if changed
     if (total != previous_total) {
-        ui->progress_bar->setMaximum(static_cast<int>(total));
+        model->SetProgressMax(static_cast<int>(total));
         previous_total = total;
     }
-    // Reset the progress bar ranges if compilation is done
+
+    // Reset ranges for Complete stage
     if (stage == VideoCore::LoadCallbackStage::Complete) {
-        ui->progress_bar->setRange(0, 0);
+        model->SetProgressMax(0);
     }
 
     QString estimate;
-    // If there's a drastic slowdown in the rate, then display an estimate
+    // ETA estimation for slow shader compilation
     if (now - previous_time > milliseconds{50} || slow_shader_compile_start) {
         if (!slow_shader_compile_start) {
             slow_shader_start = steady_clock::now();
             slow_shader_compile_start = true;
             slow_shader_first_value = value;
         }
-        // only calculate an estimate time after a second has passed since stage change
         const auto diff = duration_cast<milliseconds>(now - slow_shader_start);
         if (diff > seconds{1}) {
             const auto eta_mseconds =
@@ -174,29 +155,20 @@ void LoadingScreen::OnLoadProgress(VideoCore::LoadCallbackStage stage, std::size
         }
     }
 
-    // update labels and progress bar
+    // Update text
     if (stage == VideoCore::LoadCallbackStage::Build) {
-        ui->stage->setText(stage_translations[stage].arg(value).arg(total));
+        model->SetStageText(stage_translations[stage].arg(value).arg(total));
     } else {
-        ui->stage->setText(stage_translations[stage]);
+        model->SetStageText(stage_translations[stage]);
     }
-    ui->value->setText(estimate);
-    ui->progress_bar->setValue(static_cast<int>(value));
+    model->SetEstimateText(estimate);
+    model->SetProgressValue(static_cast<int>(value));
     previous_time = now;
 }
 
-void LoadingScreen::paintEvent(QPaintEvent* event) {
-    QStyleOption opt;
-    opt.initFrom(this);
-    QPainter p(this);
-    style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
-    QWidget::paintEvent(event);
-}
-
 void LoadingScreen::Clear() {
-#ifndef YUZU_QT_MOVIE_MISSING
-    animation.reset();
-    backing_buf.reset();
-    backing_mem.reset();
-#endif
+    image_provider->SetLogo(QPixmap());
+    image_provider->SetBanner(QPixmap());
+    model->SetLogoAvailable(false);
+    model->SetBannerAvailable(false);
 }

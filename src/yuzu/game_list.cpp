@@ -28,6 +28,7 @@
 #include "yuzu/game_list_p.h"
 #include "yuzu/game_list_worker.h"
 #include "yuzu/main.h"
+#include "yuzu/qml_bridge.h"
 #include "yuzu/uisettings.h"
 #include "yuzu/util/util.h"
 
@@ -82,21 +83,8 @@ GameList::GameList(std::shared_ptr<FileSys::VfsFilesystem> vfs_,
     ctx->setContextProperty(QStringLiteral("gameListIconSize"),
                             static_cast<int>(UISettings::values.game_icon_size.GetValue()));
 
-    // Pass palette colors to QML so we don't depend on SystemPalette QML type
-    const QPalette pal = QApplication::palette();
-    ctx->setContextProperty(QStringLiteral("paletteBase"), pal.color(QPalette::Base));
-    ctx->setContextProperty(QStringLiteral("paletteAlternateBase"),
-                            pal.color(QPalette::AlternateBase));
-    ctx->setContextProperty(QStringLiteral("paletteWindow"), pal.color(QPalette::Window));
-    ctx->setContextProperty(QStringLiteral("paletteWindowText"),
-                            pal.color(QPalette::WindowText));
-    ctx->setContextProperty(QStringLiteral("paletteButton"), pal.color(QPalette::Button));
-    ctx->setContextProperty(QStringLiteral("paletteButtonText"),
-                            pal.color(QPalette::ButtonText));
-    ctx->setContextProperty(QStringLiteral("paletteHighlight"), pal.color(QPalette::Highlight));
-    ctx->setContextProperty(QStringLiteral("paletteHighlightedText"),
-                            pal.color(QPalette::HighlightedText));
-    ctx->setContextProperty(QStringLiteral("paletteMid"), pal.color(QPalette::Mid));
+    // Set up palette colors and platform info via QmlBridge
+    QmlBridge::SetupContext(ctx);
 
     // Load QML
     quick_widget->setSource(QUrl(QStringLiteral("qrc:/qml/qml/GameListView.qml")));

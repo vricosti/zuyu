@@ -4,7 +4,6 @@
 #pragma once
 
 #include <functional>
-#include <memory>
 #include <vector>
 #include <QWidget>
 #include "yuzu/configuration/configuration_shared.h"
@@ -15,10 +14,8 @@ class System;
 
 class ConfigureDialog;
 class HotkeyRegistry;
-
-namespace Ui {
-class ConfigureGeneral;
-}
+class QQuickWidget;
+class SettingsModel;
 
 namespace ConfigurationShared {
 class Builder;
@@ -35,21 +32,18 @@ public:
     ~ConfigureGeneral() override;
 
     void SetResetCallback(std::function<void()> callback);
-    void ResetDefaults();
     void ApplyConfiguration() override;
     void SetConfiguration() override;
 
+public slots:
+    void ResetDefaults();
+
 private:
-    void Setup(const ConfigurationShared::Builder& builder);
-
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
     std::function<void()> reset_callback;
 
-    std::unique_ptr<Ui::ConfigureGeneral> ui;
-
-    std::vector<std::function<void(bool)>> apply_funcs{};
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* settings_model = nullptr;
+    SettingsModel* linux_settings_model = nullptr;
 
     const Core::System& system;
 };

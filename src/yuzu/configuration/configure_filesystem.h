@@ -3,14 +3,10 @@
 
 #pragma once
 
-#include <memory>
 #include <QWidget>
 
-class QLineEdit;
-
-namespace Ui {
-class ConfigureFilesystem;
-}
+class FilesystemConfigModel;
+class QQuickWidget;
 
 class ConfigureFilesystem : public QWidget {
     Q_OBJECT
@@ -21,23 +17,11 @@ public:
 
     void ApplyConfiguration();
 
+public slots:
+    void onBrowseDirectory(const QString& target);
+    void onResetCache();
+
 private:
-    void changeEvent(QEvent* event) override;
-
-    void RetranslateUI();
-    void SetConfiguration();
-
-    enum class DirectoryTarget {
-        NAND,
-        SD,
-        Gamecard,
-        Dump,
-        Load,
-    };
-
-    void SetDirectory(DirectoryTarget target, QLineEdit* edit);
-    void ResetMetadata();
-    void UpdateEnabledControls();
-
-    std::unique_ptr<Ui::ConfigureFilesystem> ui;
+    QQuickWidget* quick_widget = nullptr;
+    FilesystemConfigModel* fs_model = nullptr;
 };

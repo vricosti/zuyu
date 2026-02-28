@@ -3,11 +3,12 @@
 
 #pragma once
 
-#include <memory>
 #include <QWidget>
 
-namespace Ui {
-class ConfigureNetwork;
+class QQuickWidget;
+
+namespace Core {
+class System;
 }
 
 class ConfigureNetwork : public QWidget {
@@ -19,12 +20,12 @@ public:
 
     void ApplyConfiguration();
 
-private:
-    void changeEvent(QEvent*) override;
-    void RetranslateUI();
-    void SetConfiguration();
+public slots:
+    void onInterfaceChanged(const QString& name);
 
-    std::unique_ptr<Ui::ConfigureNetwork> ui;
+private:
+    QQuickWidget* quick_widget = nullptr;
+    QString selected_interface;
 
     const Core::System& system;
 };

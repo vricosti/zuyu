@@ -6,7 +6,11 @@
 #include <memory>
 #include <QDialog>
 
+class QComboBox;
+class QDialogButtonBox;
 class QLabel;
+class QLineEdit;
+class QListView;
 class QPushButton;
 class QStringListModel;
 class QVBoxLayout;
@@ -17,10 +21,6 @@ class InputSubsystem;
 
 namespace InputCommon::CemuhookUDP {
 class CalibrationConfigurationJob;
-}
-
-namespace Ui {
-class ConfigureMotionTouch;
 }
 
 /// A dialog for touchpad calibration configuration.
@@ -78,7 +78,23 @@ private:
 
     InputCommon::InputSubsystem* input_subsystem;
 
-    std::unique_ptr<Ui::ConfigureMotionTouch> ui;
+    // Touch group widgets
+    QLabel* touch_calibration_label;
+    QLabel* touch_calibration;
+    QPushButton* touch_calibration_config;
+    QComboBox* touch_from_button_map;
+    QPushButton* touch_from_button_config_btn;
+
+    // UDP group widgets
+    QLineEdit* udp_server;
+    QLineEdit* udp_port;
+    QLabel* udp_learn_more;
+    QPushButton* udp_test;
+    QPushButton* udp_add;
+    QPushButton* udp_remove;
+    QListView* udp_server_list;
+    QDialogButtonBox* button_box;
+
     QStringListModel* udp_server_list_model;
 
     // Coordinate system of the CemuhookUDP touch provider

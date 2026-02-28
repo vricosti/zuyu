@@ -1,11 +1,19 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <memory>
+#include <QDialogButtonBox>
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QSlider>
 #include <QTimer>
+#include <QVBoxLayout>
+
 #include <fmt/format.h>
 
 #include "configuration/qt_config.h"
@@ -14,7 +22,6 @@
 #include "input_common/drivers/keyboard.h"
 #include "input_common/drivers/mouse.h"
 #include "input_common/main.h"
-#include "ui_configure_ringcon.h"
 #include "yuzu/bootmanager.h"
 #include "yuzu/configuration/configure_ringcon.h"
 
@@ -98,13 +105,10 @@ QString GetButtonName(Common::Input::ButtonNames button_name) {
 
 void SetAnalogParam(const Common::ParamPackage& input_param, Common::ParamPackage& analog_param,
                     const std::string& button_name) {
-    // The poller returned a complete axis, so set all the buttons
     if (input_param.Has("axis_x") && input_param.Has("axis_y")) {
         analog_param = input_param;
         return;
     }
-    // Check if the current configuration has either no engine or an axis binding.
-    // Clears out the old binding and adds one with analog_from_button.
     if (!analog_param.Has("engine") || analog_param.Has("axis_x") || analog_param.Has("axis_y")) {
         analog_param = {
             {"engine", "analog_from_button"},
@@ -118,16 +122,110 @@ ConfigureRingController::ConfigureRingController(QWidget* parent,
                                                  InputCommon::InputSubsystem* input_subsystem_,
                                                  Core::HID::HIDCore& hid_core_)
     : QDialog(parent), timeout_timer(std::make_unique<QTimer>()),
-      poll_timer(std::make_unique<QTimer>()), input_subsystem{input_subsystem_},
+      poll_timer(std::make_unique<QTimer>()), input_subsystem{input_subsystem_} {
+    setWindowTitle(tr("Configure Ring Controller"));
 
-      ui(std::make_unique<Ui::ConfigureRingController>()) {
-    ui->setupUi(this);
+    auto* main_layout = new QVBoxLayout(this);
 
-    analog_map_buttons = {
-        ui->buttonRingAnalogPull,
-        ui->buttonRingAnalogPush,
-    };
+    // Info label
+    auto* info_label = new QLabel(
+        tr("To use Ring-Con, configure player 1 as right Joy-Con (both physical and emulated), "
+           "and player 2 as left Joy-Con (left physical and dual emulated) before starting the "
+           "game."),
+        this);
+    info_label->setWordWrap(true);
+    info_label->setMinimumWidth(280);
+    main_layout->addWidget(info_label);
 
+    main_layout->addSpacing(10);
+
+    // Virtual Ring Sensor Parameters group
+    auto* ring_group = new QGroupBox(tr("Virtual Ring Sensor Parameters"), this);
+    auto* ring_layout = new QVBoxLayout(ring_group);
+    ring_layout->setSpacing(0);
+    ring_layout->setContentsMargins(3, 6, 3, 0);
+
+    // Pull/Push buttons
+    auto* buttons_layout = new QHBoxLayout;
+    buttons_layout->setSpacing(3);
+
+    auto* pull_group = new QGroupBox(tr("Pull"), this);
+    pull_group->setAlignment(Qt::AlignCenter);
+    auto* pull_layout = new QVBoxLayout(pull_group);
+    pull_layout->setSpacing(3);
+    pull_layout->setContentsMargins(3, 3, 3, 3);
+    auto* pull_button = new QPushButton(tr("Pull"), this);
+    pull_button->setMinimumWidth(70);
+    pull_button->setMaximumWidth(68);
+    pull_button->setStyleSheet(QStringLiteral("min-width: 68px;"));
+    pull_layout->addWidget(pull_button);
+    buttons_layout->addWidget(pull_group, 0, Qt::AlignHCenter);
+
+    auto* push_group = new QGroupBox(tr("Push"), this);
+    push_group->setAlignment(Qt::AlignCenter);
+    auto* push_layout = new QVBoxLayout(push_group);
+    push_layout->setSpacing(3);
+    push_layout->setContentsMargins(3, 3, 3, 3);
+    auto* push_button = new QPushButton(tr("Push"), this);
+    push_button->setMinimumWidth(70);
+    push_button->setMaximumWidth(68);
+    push_button->setStyleSheet(QStringLiteral("min-width: 68px;"));
+    push_layout->addWidget(push_button);
+    buttons_layout->addWidget(push_group, 0, Qt::AlignHCenter);
+
+    ring_layout->addLayout(buttons_layout);
+
+    analog_map_buttons = {pull_button, push_button};
+
+    // Deadzone slider
+    auto* deadzone_layout = new QVBoxLayout;
+    deadzone_layout->setSpacing(3);
+    deadzone_layout->setContentsMargins(0, 10, 0, 3);
+
+    deadzone_label = new QLabel(tr("Deadzone: 0%"), this);
+    deadzone_label->setAlignment(Qt::AlignHCenter);
+    deadzone_layout->addWidget(deadzone_label);
+
+    deadzone_slider = new QSlider(Qt::Horizontal, this);
+    deadzone_slider->setMaximum(100);
+    deadzone_layout->addWidget(deadzone_slider);
+
+    ring_layout->addLayout(deadzone_layout);
+    main_layout->addWidget(ring_group);
+
+    // Direct Joycon Driver group
+    auto* driver_group = new QGroupBox(tr("Direct Joycon Driver"), this);
+    auto* driver_layout = new QGridLayout(driver_group);
+    driver_layout->setContentsMargins(10, 6, 10, 10);
+    driver_layout->setVerticalSpacing(10);
+
+    driver_layout->addWidget(new QLabel(tr("Enable Ring Input"), this), 0, 0);
+    enable_ring_button = new QPushButton(tr("Enable"), this);
+    driver_layout->addWidget(enable_ring_button, 0, 2);
+
+    driver_layout->addWidget(new QLabel(tr("Ring Sensor Value"), this), 1, 0);
+    sensor_value_label = new QLabel(tr("Not connected"), this);
+    sensor_value_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    driver_layout->addWidget(sensor_value_label, 1, 2);
+
+    main_layout->addWidget(driver_group);
+    main_layout->addStretch();
+
+    // Bottom: Restore Defaults + OK/Cancel
+    auto* bottom_layout = new QHBoxLayout;
+    auto* restore_button = new QPushButton(tr("Restore Defaults"), this);
+    connect(restore_button, &QPushButton::clicked, this,
+            &ConfigureRingController::RestoreDefaults);
+    bottom_layout->addWidget(restore_button);
+
+    auto* button_box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    connect(button_box, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(button_box, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    bottom_layout->addWidget(button_box);
+
+    main_layout->addLayout(bottom_layout);
+
+    // Controller setup
     emulated_controller = hid_core_.GetEmulatedController(Core::HID::NpadIdType::Player1);
     emulated_controller->SaveCurrentConfig();
     emulated_controller->EnableConfiguration();
@@ -185,18 +283,15 @@ ConfigureRingController::ConfigureRingController(QWidget* parent,
                 });
     }
 
-    connect(ui->sliderRingAnalogDeadzone, &QSlider::valueChanged, [=, this] {
+    connect(deadzone_slider, &QSlider::valueChanged, [this] {
         Common::ParamPackage param = emulated_controller->GetRingParam();
-        const auto slider_value = ui->sliderRingAnalogDeadzone->value();
-        ui->labelRingAnalogDeadzone->setText(tr("Deadzone: %1%").arg(slider_value));
+        const auto slider_value = deadzone_slider->value();
+        deadzone_label->setText(tr("Deadzone: %1%").arg(slider_value));
         param.Set("deadzone", slider_value / 100.0f);
         emulated_controller->SetRingParam(param);
     });
 
-    connect(ui->restore_defaults_button, &QPushButton::clicked, this,
-            &ConfigureRingController::RestoreDefaults);
-
-    connect(ui->enable_ring_controller_button, &QPushButton::clicked, this,
+    connect(enable_ring_button, &QPushButton::clicked, this,
             &ConfigureRingController::EnableRingController);
 
     timeout_timer->setSingleShot(true);
@@ -224,20 +319,7 @@ ConfigureRingController::~ConfigureRingController() {
     }
 };
 
-void ConfigureRingController::changeEvent(QEvent* event) {
-    if (event->type() == QEvent::LanguageChange) {
-        RetranslateUI();
-    }
-
-    QDialog::changeEvent(event);
-}
-
-void ConfigureRingController::RetranslateUI() {
-    ui->retranslateUi(this);
-}
-
 void ConfigureRingController::UpdateUI() {
-    RetranslateUI();
     const Common::ParamPackage param = emulated_controller->GetRingParam();
 
     for (int sub_button_id = 0; sub_button_id < ANALOG_SUB_BUTTONS_NUM; ++sub_button_id) {
@@ -249,9 +331,6 @@ void ConfigureRingController::UpdateUI() {
 
         analog_button->setText(AnalogToText(param, analog_sub_buttons[sub_button_id]));
     }
-
-    const auto deadzone_label = ui->labelRingAnalogDeadzone;
-    const auto deadzone_slider = ui->sliderRingAnalogDeadzone;
 
     int slider_value = static_cast<int>(param.Get("deadzone", 0.15f) * 100);
     deadzone_label->setText(tr("Deadzone: %1%").arg(slider_value));
@@ -279,16 +358,15 @@ void ConfigureRingController::EnableRingController() {
     const auto dialog_title = tr("Error enabling ring input");
 
     is_ring_enabled = false;
-    ui->ring_controller_sensor_value->setText(tr("Not connected"));
+    sensor_value_label->setText(tr("Not connected"));
 
     if (!Settings::values.enable_joycon_driver) {
         QMessageBox::warning(this, dialog_title, tr("Direct Joycon driver is not enabled"));
         return;
     }
 
-    ui->enable_ring_controller_button->setEnabled(false);
-    ui->enable_ring_controller_button->setText(tr("Configuring"));
-    // SetPollingMode is blocking. Allow to update the button status before calling the command
+    enable_ring_button->setEnabled(false);
+    enable_ring_button->setText(tr("Configuring"));
     repaint();
 
     const auto result = emulated_controller->SetPollingMode(
@@ -313,8 +391,8 @@ void ConfigureRingController::EnableRingController() {
                              tr("Unexpected driver result %1").arg(static_cast<int>(result)));
         break;
     }
-    ui->enable_ring_controller_button->setEnabled(true);
-    ui->enable_ring_controller_button->setText(tr("Enable"));
+    enable_ring_button->setEnabled(true);
+    enable_ring_button->setText(tr("Enable"));
 }
 
 void ConfigureRingController::ControllerUpdate(Core::HID::ControllerTriggerType type) {
@@ -327,7 +405,7 @@ void ConfigureRingController::ControllerUpdate(Core::HID::ControllerTriggerType 
 
     const auto value = emulated_controller->GetRingSensorValues();
     const auto tex_value = QString::fromStdString(fmt::format("{:.3f}", value.raw_value));
-    ui->ring_controller_sensor_value->setText(tex_value);
+    sensor_value_label->setText(tex_value);
 }
 
 void ConfigureRingController::HandleClick(
@@ -343,8 +421,8 @@ void ConfigureRingController::HandleClick(
     QWidget::grabMouse();
     QWidget::grabKeyboard();
 
-    timeout_timer->start(2500); // Cancel after 2.5 seconds
-    poll_timer->start(25);      // Check for new inputs every 25ms
+    timeout_timer->start(2500);
+    poll_timer->start(25);
 }
 
 void ConfigureRingController::SetPollingResult(const Common::ParamPackage& params, bool abort) {
@@ -396,7 +474,6 @@ QString ConfigureRingController::ButtonToText(const Common::ParamPackage& param)
     const QString inverted = QString::fromStdString(param.Get("inverted", false) ? "!" : "");
     const auto common_button_name = input_subsystem->GetButtonName(param);
 
-    // Retrieve the names from Qt
     if (param.Get("engine", "") == "keyboard") {
         const QString button_str = GetKeyName(param.Get("code", 0));
         return QObject::tr("%1%2").arg(toggle, button_str);

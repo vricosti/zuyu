@@ -3,13 +3,10 @@
 
 #pragma once
 
-#include <memory>
-#include <QFutureWatcher>
 #include <QWidget>
 
-namespace Ui {
-class ConfigureWeb;
-}
+class QQuickWidget;
+class WebConfigModel;
 
 class ConfigureWeb : public QWidget {
     Q_OBJECT
@@ -21,19 +18,10 @@ public:
     void ApplyConfiguration();
     void SetWebServiceConfigEnabled(bool enabled);
 
+private slots:
+    void onVerifyFailed(const QString& message);
+
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    void RefreshTelemetryID();
-    void OnLoginChanged();
-    void VerifyLogin();
-    void OnLoginVerified();
-
-    void SetConfiguration();
-
-    bool user_verified = true;
-    QFutureWatcher<bool> verify_watcher;
-
-    std::unique_ptr<Ui::ConfigureWeb> ui;
+    QQuickWidget* quick_widget = nullptr;
+    WebConfigModel* web_model = nullptr;
 };

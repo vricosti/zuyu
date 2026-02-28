@@ -4,16 +4,21 @@
 #pragma once
 
 #include <functional>
-#include <memory>
 #include <optional>
 #include <vector>
 #include <QDialog>
 
+class QComboBox;
+class QDialogButtonBox;
 class QItemSelection;
+class QLabel;
 class QModelIndex;
+class QPushButton;
 class QStandardItemModel;
 class QStandardItem;
 class QTimer;
+class QTreeView;
+class TouchScreenPreview;
 
 namespace Common {
 class ParamPackage;
@@ -25,10 +30,6 @@ class InputSubsystem;
 
 namespace Settings {
 struct TouchFromButtonMap;
-}
-
-namespace Ui {
-class ConfigureTouchFromButton;
 }
 
 class ConfigureTouchFromButton : public QDialog {
@@ -72,7 +73,17 @@ private:
     void SetPollingResult(const Common::ParamPackage& params, bool cancel);
     void SaveCurrentMapping();
 
-    std::unique_ptr<Ui::ConfigureTouchFromButton> ui;
+    // Widgets
+    QComboBox* mapping;
+    QPushButton* button_new;
+    QPushButton* button_delete;
+    QPushButton* button_rename;
+    QPushButton* button_delete_bind;
+    QTreeView* binding_list;
+    TouchScreenPreview* bottom_screen;
+    QLabel* coord_label;
+    QDialogButtonBox* button_box;
+
     std::vector<Settings::TouchFromButtonMap> touch_maps;
     QStandardItemModel* binding_list_model;
     InputCommon::InputSubsystem* input_subsystem;

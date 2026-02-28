@@ -1,189 +1,92 @@
 // SPDX-FileCopyrightText: 2017 Citra Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <QButtonGroup>
 #include <QMessageBox>
-#include <QPushButton>
+#include <QQmlContext>
+#include <QQuickWidget>
+#include <QVBoxLayout>
 #include <QtConcurrent/qtconcurrentrun.h>
+
 #include "common/logging/log.h"
 #include "common/telemetry.h"
 #include "core/telemetry_session.h"
-#include "ui_compatdb.h"
 #include "yuzu/compatdb.h"
+#include "yuzu/compatdb_model.h"
+#include "yuzu/qml_bridge.h"
 
 CompatDB::CompatDB(Core::TelemetrySession& telemetry_session_, QWidget* parent)
-    : QWizard(parent, Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowSystemMenuHint),
-      ui{std::make_unique<Ui::CompatDB>()}, telemetry_session{telemetry_session_} {
-    ui->setupUi(this);
+    : QDialog(parent, Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowSystemMenuHint),
+      telemetry_session{telemetry_session_} {
 
-    connect(ui->radioButton_GameBoot_Yes, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_GameBoot_No, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Gameplay_Yes, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Gameplay_No, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_NoFreeze_Yes, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_NoFreeze_No, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Complete_Yes, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Complete_No, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Graphical_Major, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Graphical_Minor, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Graphical_No, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Audio_Major, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Audio_Minor, &QRadioButton::clicked, this, &CompatDB::EnableNext);
-    connect(ui->radioButton_Audio_No, &QRadioButton::clicked, this, &CompatDB::EnableNext);
+    setWindowTitle(tr("Report Compatibility"));
+    setMinimumSize(500, 410);
+    resize(600, 482);
 
-    connect(button(NextButton), &QPushButton::clicked, this, &CompatDB::Submit);
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    model = new CompatDBModel(this);
+
+    quick_widget = new QQuickWidget(this);
+    quick_widget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+
+    QQmlContext* ctx = quick_widget->rootContext();
+    QmlBridge::SetupContext(ctx);
+    ctx->setContextProperty(QStringLiteral("compatModel"), model);
+
+    quick_widget->setSource(QUrl(QStringLiteral("qrc:/qml/qml/CompatDBWizard.qml")));
+
+    if (quick_widget->status() == QQuickWidget::Error) {
+        for (const auto& error : quick_widget->errors()) {
+            LOG_ERROR(Frontend, "CompatDB QML Error: {}", error.toString().toStdString());
+        }
+    }
+
+    layout->addWidget(quick_widget);
+    setLayout(layout);
+
+    connect(model, &CompatDBModel::submitRequested, this, &CompatDB::Submit);
+    connect(model, &CompatDBModel::cancelRequested, this, &CompatDB::reject);
     connect(&testcase_watcher, &QFutureWatcher<bool>::finished, this,
             &CompatDB::OnTestcaseSubmitted);
 }
 
 CompatDB::~CompatDB() = default;
 
-enum class CompatDBPage {
-    Intro = 0,
-    GameBoot = 1,
-    GamePlay = 2,
-    Freeze = 3,
-    Completion = 4,
-    Graphical = 5,
-    Audio = 6,
-    Final = 7,
-};
-
 void CompatDB::Submit() {
-    QButtonGroup* compatibility_GameBoot = new QButtonGroup(this);
-    compatibility_GameBoot->addButton(ui->radioButton_GameBoot_Yes, 0);
-    compatibility_GameBoot->addButton(ui->radioButton_GameBoot_No, 1);
-
-    QButtonGroup* compatibility_Gameplay = new QButtonGroup(this);
-    compatibility_Gameplay->addButton(ui->radioButton_Gameplay_Yes, 0);
-    compatibility_Gameplay->addButton(ui->radioButton_Gameplay_No, 1);
-
-    QButtonGroup* compatibility_NoFreeze = new QButtonGroup(this);
-    compatibility_NoFreeze->addButton(ui->radioButton_NoFreeze_Yes, 0);
-    compatibility_NoFreeze->addButton(ui->radioButton_NoFreeze_No, 1);
-
-    QButtonGroup* compatibility_Complete = new QButtonGroup(this);
-    compatibility_Complete->addButton(ui->radioButton_Complete_Yes, 0);
-    compatibility_Complete->addButton(ui->radioButton_Complete_No, 1);
-
-    QButtonGroup* compatibility_Graphical = new QButtonGroup(this);
-    compatibility_Graphical->addButton(ui->radioButton_Graphical_Major, 0);
-    compatibility_Graphical->addButton(ui->radioButton_Graphical_Minor, 1);
-    compatibility_Graphical->addButton(ui->radioButton_Graphical_No, 2);
-
-    QButtonGroup* compatibility_Audio = new QButtonGroup(this);
-    compatibility_Audio->addButton(ui->radioButton_Audio_Major, 0);
-    compatibility_Graphical->addButton(ui->radioButton_Audio_Minor, 1);
-    compatibility_Audio->addButton(ui->radioButton_Audio_No, 2);
-
     const int compatibility = static_cast<int>(CalculateCompatibility());
 
-    switch ((static_cast<CompatDBPage>(currentId()))) {
-    case CompatDBPage::Intro:
-        break;
-    case CompatDBPage::GameBoot:
-        if (compatibility_GameBoot->checkedId() == -1) {
-            button(NextButton)->setEnabled(false);
-        }
-        break;
-    case CompatDBPage::GamePlay:
-        if (compatibility_Gameplay->checkedId() == -1) {
-            button(NextButton)->setEnabled(false);
-        }
-        break;
-    case CompatDBPage::Freeze:
-        if (compatibility_NoFreeze->checkedId() == -1) {
-            button(NextButton)->setEnabled(false);
-        }
-        break;
-    case CompatDBPage::Completion:
-        if (compatibility_Complete->checkedId() == -1) {
-            button(NextButton)->setEnabled(false);
-        }
-        break;
-    case CompatDBPage::Graphical:
-        if (compatibility_Graphical->checkedId() == -1) {
-            button(NextButton)->setEnabled(false);
-        }
-        break;
-    case CompatDBPage::Audio:
-        if (compatibility_Audio->checkedId() == -1) {
-            button(NextButton)->setEnabled(false);
-        }
-        break;
-    case CompatDBPage::Final:
-        back();
-        LOG_INFO(Frontend, "Compatibility Rating: {}", compatibility);
-        telemetry_session.AddField(Common::Telemetry::FieldType::UserFeedback, "Compatibility",
-                                   compatibility);
+    LOG_INFO(Frontend, "Compatibility Rating: {}", compatibility);
+    telemetry_session.AddField(Common::Telemetry::FieldType::UserFeedback, "Compatibility",
+                               compatibility);
 
-        button(NextButton)->setEnabled(false);
-        button(NextButton)->setText(tr("Submitting"));
-        button(CancelButton)->setVisible(false);
+    model->setIsSubmitting(true);
 
-        testcase_watcher.setFuture(
-            QtConcurrent::run([this] { return telemetry_session.SubmitTestcase(); }));
-        break;
-    default:
-        LOG_ERROR(Frontend, "Unexpected page: {}", currentId());
-        break;
-    }
-}
-
-int CompatDB::nextId() const {
-    switch ((static_cast<CompatDBPage>(currentId()))) {
-    case CompatDBPage::Intro:
-        return static_cast<int>(CompatDBPage::GameBoot);
-    case CompatDBPage::GameBoot:
-        if (ui->radioButton_GameBoot_No->isChecked()) {
-            return static_cast<int>(CompatDBPage::Final);
-        }
-        return static_cast<int>(CompatDBPage::GamePlay);
-    case CompatDBPage::GamePlay:
-        if (ui->radioButton_Gameplay_No->isChecked()) {
-            return static_cast<int>(CompatDBPage::Final);
-        }
-        return static_cast<int>(CompatDBPage::Freeze);
-    case CompatDBPage::Freeze:
-        if (ui->radioButton_NoFreeze_No->isChecked()) {
-            return static_cast<int>(CompatDBPage::Final);
-        }
-        return static_cast<int>(CompatDBPage::Completion);
-    case CompatDBPage::Completion:
-        if (ui->radioButton_Complete_No->isChecked()) {
-            return static_cast<int>(CompatDBPage::Final);
-        }
-        return static_cast<int>(CompatDBPage::Graphical);
-    case CompatDBPage::Graphical:
-        return static_cast<int>(CompatDBPage::Audio);
-    case CompatDBPage::Audio:
-        return static_cast<int>(CompatDBPage::Final);
-    case CompatDBPage::Final:
-        return -1;
-    default:
-        LOG_ERROR(Frontend, "Unexpected page: {}", currentId());
-        return static_cast<int>(CompatDBPage::Intro);
-    }
+    testcase_watcher.setFuture(
+        QtConcurrent::run([this] { return telemetry_session.SubmitTestcase(); }));
 }
 
 CompatibilityStatus CompatDB::CalculateCompatibility() const {
-    if (ui->radioButton_GameBoot_No->isChecked()) {
+    // gameBootSelection: 0 = Yes, 1 = No
+    if (model->gameBootSelection() == 1) {
         return CompatibilityStatus::WontBoot;
     }
 
-    if (ui->radioButton_Gameplay_No->isChecked()) {
+    if (model->gameplaySelection() == 1) {
         return CompatibilityStatus::IntroMenu;
     }
 
-    if (ui->radioButton_NoFreeze_No->isChecked() || ui->radioButton_Complete_No->isChecked()) {
+    if (model->freezeSelection() == 1 || model->completionSelection() == 1) {
         return CompatibilityStatus::Ingame;
     }
 
-    if (ui->radioButton_Graphical_Major->isChecked() || ui->radioButton_Audio_Major->isChecked()) {
+    // graphicalSelection: 0 = Major, 1 = Minor, 2 = None
+    // audioSelection: 0 = Major, 1 = Minor, 2 = None
+    if (model->graphicalSelection() == 0 || model->audioSelection() == 0) {
         return CompatibilityStatus::Ingame;
     }
 
-    if (ui->radioButton_Graphical_Minor->isChecked() || ui->radioButton_Audio_Minor->isChecked()) {
+    if (model->graphicalSelection() == 1 || model->audioSelection() == 1) {
         return CompatibilityStatus::Playable;
     }
 
@@ -194,17 +97,9 @@ void CompatDB::OnTestcaseSubmitted() {
     if (!testcase_watcher.result()) {
         QMessageBox::critical(this, tr("Communication error"),
                               tr("An error occurred while sending the Testcase"));
-        button(NextButton)->setEnabled(true);
-        button(NextButton)->setText(tr("Next"));
-        button(CancelButton)->setVisible(true);
+        model->setIsSubmitting(false);
     } else {
-        next();
-        // older versions of QT don't support the "NoCancelButtonOnLastPage" option, this is a
-        // workaround
-        button(CancelButton)->setVisible(false);
+        model->setIsSubmitting(false);
+        model->setIsFinished(true);
     }
-}
-
-void CompatDB::EnableNext() {
-    button(NextButton)->setEnabled(true);
 }

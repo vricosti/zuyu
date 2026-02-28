@@ -4,15 +4,11 @@
 #pragma once
 
 #include <array>
-#include <memory>
 #include <QDialog>
 
+class QCheckBox;
 class QGroupBox;
 class QSpinBox;
-
-namespace Ui {
-class ConfigureVibration;
-}
 
 namespace Core::HID {
 enum class ControllerTriggerType;
@@ -29,23 +25,16 @@ public:
     void ApplyConfiguration();
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
     void VibrateController(Core::HID::ControllerTriggerType type, std::size_t player_index);
     void StopVibrations();
 
-    std::unique_ptr<Ui::ConfigureVibration> ui;
-
     static constexpr std::size_t NUM_PLAYERS = 8;
 
-    /// Groupboxes encapsulating the vibration strength spinbox.
     std::array<QGroupBox*, NUM_PLAYERS> vibration_groupboxes;
-
-    /// Spinboxes representing the vibration strength percentage.
     std::array<QSpinBox*, NUM_PLAYERS> vibration_spinboxes;
-
-    /// Callback index to stop the controllers events
     std::array<int, NUM_PLAYERS> controller_callback_key;
+
+    QCheckBox* accurate_vibration_checkbox;
 
     Core::HID::HIDCore& hid_core;
 };

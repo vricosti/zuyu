@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <QStandardItemModel>
 #include <QWidget>
 
@@ -17,12 +18,9 @@ class EmulatedController;
 enum class NpadButton : u64;
 } // namespace Core::HID
 
-namespace Ui {
-class ConfigureHotkeys;
-}
-
 class HotkeyRegistry;
-class QStandardItemModel;
+class QQuickWidget;
+class QTimer;
 
 class ConfigureHotkeys : public QWidget {
     Q_OBJECT
@@ -32,39 +30,32 @@ public:
     ~ConfigureHotkeys() override;
 
     void ApplyConfiguration(HotkeyRegistry& registry);
-
-    /**
-     * Populates the hotkey list widget using data from the provided registry.
-     * Called every time the Configure dialog is opened.
-     * @param registry The HotkeyRegistry whose data is used to populate the list.
-     */
     void Populate(const HotkeyRegistry& registry);
 
-private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
+public slots:
+    void onConfigureHotkey(int groupIndex, int actionIndex, int column);
+    void onRestoreDefaults();
+    void onClearAll();
+    void onRestoreDefault(int groupIndex, int actionIndex, int column);
+    void onClearHotkey(int groupIndex, int actionIndex, int column);
 
-    void Configure(QModelIndex index);
-    void ConfigureController(QModelIndex index);
+private:
+    void Configure(int groupIndex, int actionIndex);
+    void ConfigureController(int groupIndex, int actionIndex);
     std::pair<bool, QString> IsUsedKey(QKeySequence key_sequence) const;
     std::pair<bool, QString> IsUsedControllerKey(const QString& key_sequence) const;
 
-    void RestoreDefaults();
-    void ClearAll();
-    void PopupContextMenu(const QPoint& menu_location);
-    void RestoreControllerHotkey(QModelIndex index);
-    void RestoreHotkey(QModelIndex index);
-
     void SetPollingResult(bool cancel);
-    QString GetButtonCombinationName(Core::HID::NpadButton button, bool home, bool capture) const;
+    QString GetButtonCombinationName(Core::HID::NpadButton button, bool home,
+                                     bool capture) const;
 
-    std::unique_ptr<Ui::ConfigureHotkeys> ui;
-
+    QQuickWidget* quick_widget = nullptr;
     QStandardItemModel* model;
 
     bool pressed_home_button;
     bool pressed_capture_button;
-    QModelIndex button_model_index;
+    int target_group_index = -1;
+    int target_action_index = -1;
     Core::HID::NpadButton pressed_buttons;
 
     Core::HID::EmulatedController* controller;

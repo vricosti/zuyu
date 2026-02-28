@@ -1,48 +1,69 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <QtConcurrent/QtConcurrent>
+#include <QQmlContext>
+#include <QQuickItem>
+#include <QQuickWidget>
+#include <QStringList>
+#include <QVBoxLayout>
+
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/internal_network/network_interface.h"
-#include "ui_configure_network.h"
 #include "yuzu/configuration/configure_network.h"
+#include "yuzu/qml_bridge.h"
 
 ConfigureNetwork::ConfigureNetwork(const Core::System& system_, QWidget* parent)
-    : QWidget(parent), ui(std::make_unique<Ui::ConfigureNetwork>()), system{system_} {
-    ui->setupUi(this);
+    : QWidget(parent), system{system_} {
 
-    ui->network_interface->addItem(tr("None"));
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    // Build interface list
+    QStringList interfaces;
+    interfaces.append(tr("None"));
     for (const auto& iface : Network::GetAvailableNetworkInterfaces()) {
-        ui->network_interface->addItem(QString::fromStdString(iface.name));
+        interfaces.append(QString::fromStdString(iface.name));
     }
 
-    this->SetConfiguration();
+    selected_interface =
+        QString::fromStdString(Settings::values.network_interface.GetValue());
+
+    quick_widget = new QQuickWidget(this);
+    quick_widget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+
+    QQmlContext* ctx = quick_widget->rootContext();
+    QmlBridge::SetupContext(ctx);
+    ctx->setContextProperty(QStringLiteral("networkInterfaces"), interfaces);
+    ctx->setContextProperty(QStringLiteral("currentInterface"), selected_interface);
+    ctx->setContextProperty(QStringLiteral("isLocked"), system.IsPoweredOn());
+
+    quick_widget->setSource(QUrl(QStringLiteral("qrc:/qml/qml/ConfigureNetwork.qml")));
+
+    if (quick_widget->status() == QQuickWidget::Error) {
+        for (const auto& error : quick_widget->errors()) {
+            LOG_ERROR(Frontend, "ConfigureNetwork QML Error: {}",
+                      error.toString().toStdString());
+        }
+    }
+
+    // Connect QML signal
+    QQuickItem* root = quick_widget->rootObject();
+    if (root) {
+        connect(root, SIGNAL(interfaceChanged(QString)), this,
+                SLOT(onInterfaceChanged(QString)));
+    }
+
+    layout->addWidget(quick_widget);
+    setLayout(layout);
 }
 
 ConfigureNetwork::~ConfigureNetwork() = default;
 
+void ConfigureNetwork::onInterfaceChanged(const QString& name) {
+    selected_interface = name;
+}
+
 void ConfigureNetwork::ApplyConfiguration() {
-    Settings::values.network_interface = ui->network_interface->currentText().toStdString();
-}
-
-void ConfigureNetwork::changeEvent(QEvent* event) {
-    if (event->type() == QEvent::LanguageChange) {
-        RetranslateUI();
-    }
-
-    QWidget::changeEvent(event);
-}
-
-void ConfigureNetwork::RetranslateUI() {
-    ui->retranslateUi(this);
-}
-
-void ConfigureNetwork::SetConfiguration() {
-    const bool runtime_lock = !system.IsPoweredOn();
-
-    const std::string& network_interface = Settings::values.network_interface.GetValue();
-
-    ui->network_interface->setCurrentText(QString::fromStdString(network_interface));
-    ui->network_interface->setEnabled(runtime_lock);
+    Settings::values.network_interface = selected_interface.toStdString();
 }

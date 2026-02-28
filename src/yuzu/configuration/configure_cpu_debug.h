@@ -3,16 +3,14 @@
 
 #pragma once
 
-#include <memory>
 #include <QWidget>
 
 namespace Core {
 class System;
 }
 
-namespace Ui {
-class ConfigureCpuDebug;
-}
+class QQuickWidget;
+class SettingsModel;
 
 class ConfigureCpuDebug : public QWidget {
     Q_OBJECT
@@ -24,12 +22,7 @@ public:
     void ApplyConfiguration();
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    void SetConfiguration();
-
-    std::unique_ptr<Ui::ConfigureCpuDebug> ui;
-
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* settings_model = nullptr;
     const Core::System& system;
 };

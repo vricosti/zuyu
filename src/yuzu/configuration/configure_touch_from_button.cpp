@@ -1,17 +1,26 @@
 // SPDX-FileCopyrightText: 2020 Citra Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <QApplication>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QFrame>
+#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QPushButton>
 #include <QStandardItemModel>
 #include <QTimer>
+#include <QTreeView>
+#include <QVBoxLayout>
+
 #include "common/param_package.h"
 #include "common/settings.h"
 #include "core/frontend/framebuffer_layout.h"
 #include "input_common/main.h"
-#include "ui_configure_touch_from_button.h"
 #include "yuzu/configuration/configure_touch_from_button.h"
 #include "yuzu/configuration/configure_touch_widget.h"
 
@@ -69,15 +78,95 @@ static QString ButtonToText(const Common::ParamPackage& param) {
 ConfigureTouchFromButton::ConfigureTouchFromButton(
     QWidget* parent, const std::vector<Settings::TouchFromButtonMap>& touch_maps_,
     InputCommon::InputSubsystem* input_subsystem_, const int default_index)
-    : QDialog(parent), ui(std::make_unique<Ui::ConfigureTouchFromButton>()),
-      touch_maps{touch_maps_}, input_subsystem{input_subsystem_}, selected_index{default_index},
-      timeout_timer(std::make_unique<QTimer>()), poll_timer(std::make_unique<QTimer>()) {
-    ui->setupUi(this);
+    : QDialog(parent), touch_maps{touch_maps_}, input_subsystem{input_subsystem_},
+      selected_index{default_index}, timeout_timer(std::make_unique<QTimer>()),
+      poll_timer(std::make_unique<QTimer>()) {
+    setWindowTitle(tr("Configure Touchscreen Mappings"));
+    resize(500, 500);
+
+    auto* main_layout = new QVBoxLayout(this);
+
+    // Top: Mapping combo + buttons
+    auto* top_layout = new QHBoxLayout;
+    top_layout->addWidget(new QLabel(tr("Mapping:"), this));
+
+    mapping = new QComboBox(this);
+    mapping->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+    top_layout->addWidget(mapping);
+
+    button_new = new QPushButton(tr("New"), this);
+    button_new->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+    top_layout->addWidget(button_new);
+
+    button_delete = new QPushButton(tr("Delete"), this);
+    button_delete->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+    top_layout->addWidget(button_delete);
+
+    button_rename = new QPushButton(tr("Rename"), this);
+    button_rename->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+    top_layout->addWidget(button_rename);
+
+    main_layout->addLayout(top_layout);
+
+    // Separator
+    auto* line = new QFrame(this);
+    line->setFrameShape(QFrame::HLine);
+    line->setFrameShadow(QFrame::Sunken);
+    main_layout->addWidget(line);
+
+    // Instructions + Delete Point
+    auto* instructions_layout = new QHBoxLayout;
+    auto* instructions_label = new QLabel(
+        tr("Click the bottom area to add a point, then press a button to bind.\n"
+           "Drag points to change position, or double-click table cells to edit values."),
+        this);
+    instructions_label->setTextFormat(Qt::PlainText);
+    instructions_layout->addWidget(instructions_label);
+    instructions_layout->addStretch();
+
+    button_delete_bind = new QPushButton(tr("Delete Point"), this);
+    instructions_layout->addWidget(button_delete_bind);
+
+    main_layout->addLayout(instructions_layout);
+
+    // Binding list
+    binding_list = new QTreeView(this);
+    binding_list->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    binding_list->setRootIsDecorated(false);
+    binding_list->setUniformRowHeights(true);
+    binding_list->setItemsExpandable(false);
+    main_layout->addWidget(binding_list);
+
+    // Touch screen preview
+    bottom_screen = new TouchScreenPreview(this);
+    bottom_screen->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    bottom_screen->setMinimumSize(160, 120);
+    bottom_screen->setBaseSize(320, 240);
+    bottom_screen->setCursor(Qt::CrossCursor);
+    bottom_screen->setMouseTracking(true);
+    bottom_screen->setAutoFillBackground(true);
+    bottom_screen->setFrameShape(QFrame::StyledPanel);
+    bottom_screen->setFrameShadow(QFrame::Sunken);
+    main_layout->addWidget(bottom_screen);
+
+    // Bottom: coord label + button box
+    auto* bottom_layout = new QHBoxLayout;
+    coord_label = new QLabel(this);
+    coord_label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    coord_label->setTextFormat(Qt::PlainText);
+    bottom_layout->addWidget(coord_label);
+
+    button_box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    bottom_layout->addWidget(button_box);
+
+    main_layout->addLayout(bottom_layout);
+
+    // Setup model
     binding_list_model = new QStandardItemModel(0, 3, this);
     binding_list_model->setHorizontalHeaderLabels(
         {tr("Button"), tr("X", "X axis"), tr("Y", "Y axis")});
-    ui->binding_list->setModel(binding_list_model);
-    ui->bottom_screen->SetCoordLabel(ui->coord_label);
+    binding_list->setModel(binding_list_model);
+    bottom_screen->SetCoordLabel(coord_label);
 
     SetConfiguration();
     UpdateUiDisplay();
@@ -89,28 +178,27 @@ ConfigureTouchFromButton::~ConfigureTouchFromButton() = default;
 void ConfigureTouchFromButton::showEvent(QShowEvent* ev) {
     QWidget::showEvent(ev);
 
-    // width values are not valid in the constructor
     const int w =
-        ui->binding_list->viewport()->contentsRect().width() / binding_list_model->columnCount();
+        binding_list->viewport()->contentsRect().width() / binding_list_model->columnCount();
     if (w <= 0) {
         return;
     }
-    ui->binding_list->setColumnWidth(0, w);
-    ui->binding_list->setColumnWidth(1, w);
-    ui->binding_list->setColumnWidth(2, w);
+    binding_list->setColumnWidth(0, w);
+    binding_list->setColumnWidth(1, w);
+    binding_list->setColumnWidth(2, w);
 }
 
 void ConfigureTouchFromButton::SetConfiguration() {
     for (const auto& touch_map : touch_maps) {
-        ui->mapping->addItem(QString::fromStdString(touch_map.name));
+        mapping->addItem(QString::fromStdString(touch_map.name));
     }
 
-    ui->mapping->setCurrentIndex(selected_index);
+    mapping->setCurrentIndex(selected_index);
 }
 
 void ConfigureTouchFromButton::UpdateUiDisplay() {
-    ui->button_delete->setEnabled(touch_maps.size() > 1);
-    ui->button_delete_bind->setEnabled(false);
+    button_delete->setEnabled(touch_maps.size() > 1);
+    button_delete_bind->setEnabled(false);
 
     binding_list_model->removeRows(0, binding_list_model->rowCount());
 
@@ -123,40 +211,41 @@ void ConfigureTouchFromButton::UpdateUiDisplay() {
         QStandardItem* ycoord = new QStandardItem(QString::number(package.Get("y", 0)));
         binding_list_model->appendRow({button, xcoord, ycoord});
 
-        const int dot = ui->bottom_screen->AddDot(package.Get("x", 0), package.Get("y", 0));
+        const int dot = bottom_screen->AddDot(package.Get("x", 0), package.Get("y", 0));
         button->setData(dot, DataRoleDot);
     }
 }
 
 void ConfigureTouchFromButton::ConnectEvents() {
-    connect(ui->mapping, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+    connect(mapping, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
         SaveCurrentMapping();
         selected_index = index;
         UpdateUiDisplay();
     });
-    connect(ui->button_new, &QPushButton::clicked, this, &ConfigureTouchFromButton::NewMapping);
-    connect(ui->button_delete, &QPushButton::clicked, this,
+    connect(button_new, &QPushButton::clicked, this, &ConfigureTouchFromButton::NewMapping);
+    connect(button_delete, &QPushButton::clicked, this,
             &ConfigureTouchFromButton::DeleteMapping);
-    connect(ui->button_rename, &QPushButton::clicked, this,
+    connect(button_rename, &QPushButton::clicked, this,
             &ConfigureTouchFromButton::RenameMapping);
-    connect(ui->button_delete_bind, &QPushButton::clicked, this,
+    connect(button_delete_bind, &QPushButton::clicked, this,
             &ConfigureTouchFromButton::DeleteBinding);
-    connect(ui->binding_list, &QTreeView::doubleClicked, this,
+    connect(binding_list, &QTreeView::doubleClicked, this,
             &ConfigureTouchFromButton::EditBinding);
-    connect(ui->binding_list->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+    connect(binding_list->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             &ConfigureTouchFromButton::OnBindingSelection);
     connect(binding_list_model, &QStandardItemModel::itemChanged, this,
             &ConfigureTouchFromButton::OnBindingChanged);
-    connect(ui->binding_list->model(), &QStandardItemModel::rowsAboutToBeRemoved, this,
+    connect(binding_list->model(), &QStandardItemModel::rowsAboutToBeRemoved, this,
             &ConfigureTouchFromButton::OnBindingDeleted);
-    connect(ui->bottom_screen, &TouchScreenPreview::DotAdded, this,
+    connect(bottom_screen, &TouchScreenPreview::DotAdded, this,
             &ConfigureTouchFromButton::NewBinding);
-    connect(ui->bottom_screen, &TouchScreenPreview::DotSelected, this,
+    connect(bottom_screen, &TouchScreenPreview::DotSelected, this,
             &ConfigureTouchFromButton::SetActiveBinding);
-    connect(ui->bottom_screen, &TouchScreenPreview::DotMoved, this,
+    connect(bottom_screen, &TouchScreenPreview::DotMoved, this,
             &ConfigureTouchFromButton::SetCoordinates);
-    connect(ui->buttonBox, &QDialogButtonBox::accepted, this,
+    connect(button_box, &QDialogButtonBox::accepted, this,
             &ConfigureTouchFromButton::ApplyConfiguration);
+    connect(button_box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     connect(timeout_timer.get(), &QTimer::timeout, [this]() { SetPollingResult({}, true); });
 
@@ -197,21 +286,21 @@ void ConfigureTouchFromButton::NewMapping() {
         return;
     }
     touch_maps.emplace_back(Settings::TouchFromButtonMap{name.toStdString(), {}});
-    ui->mapping->addItem(name);
-    ui->mapping->setCurrentIndex(ui->mapping->count() - 1);
+    mapping->addItem(name);
+    mapping->setCurrentIndex(mapping->count() - 1);
 }
 
 void ConfigureTouchFromButton::DeleteMapping() {
     const auto answer = QMessageBox::question(
-        this, tr("Delete Profile"), tr("Delete profile %1?").arg(ui->mapping->currentText()));
+        this, tr("Delete Profile"), tr("Delete profile %1?").arg(mapping->currentText()));
     if (answer != QMessageBox::Yes) {
         return;
     }
-    const bool blocked = ui->mapping->blockSignals(true);
-    ui->mapping->removeItem(selected_index);
-    ui->mapping->blockSignals(blocked);
+    const bool blocked = mapping->blockSignals(true);
+    mapping->removeItem(selected_index);
+    mapping->blockSignals(blocked);
     touch_maps.erase(touch_maps.begin() + selected_index);
-    selected_index = ui->mapping->currentIndex();
+    selected_index = mapping->currentIndex();
     UpdateUiDisplay();
 }
 
@@ -220,7 +309,7 @@ void ConfigureTouchFromButton::RenameMapping() {
     if (new_name.isEmpty()) {
         return;
     }
-    ui->mapping->setItemText(selected_index, new_name);
+    mapping->setItemText(selected_index, new_name);
     touch_maps[selected_index].name = new_name.toStdString();
 }
 
@@ -251,8 +340,8 @@ void ConfigureTouchFromButton::GetButtonInput(const int row_index, const bool is
     grabKeyboard();
     grabMouse();
     qApp->setOverrideCursor(QCursor(Qt::CursorShape::ArrowCursor));
-    timeout_timer->start(5000); // Cancel after 5 seconds
-    poll_timer->start(200);     // Check for new inputs every 200ms
+    timeout_timer->start(5000);
+    poll_timer->start(200);
 }
 
 void ConfigureTouchFromButton::NewBinding(const QPoint& pos) {
@@ -261,12 +350,12 @@ void ConfigureTouchFromButton::NewBinding(const QPoint& pos) {
     auto* x_coord = new QStandardItem(QString::number(pos.x()));
     auto* y_coord = new QStandardItem(QString::number(pos.y()));
 
-    const int dot_id = ui->bottom_screen->AddDot(pos.x(), pos.y());
+    const int dot_id = bottom_screen->AddDot(pos.x(), pos.y());
     button->setData(dot_id, DataRoleDot);
 
     binding_list_model->appendRow({button, x_coord, y_coord});
-    ui->binding_list->setFocus();
-    ui->binding_list->setCurrentIndex(button->index());
+    binding_list->setFocus();
+    binding_list->setCurrentIndex(button->index());
 
     GetButtonInput(binding_list_model->rowCount() - 1, true);
 }
@@ -278,27 +367,27 @@ void ConfigureTouchFromButton::EditBinding(const QModelIndex& qi) {
 }
 
 void ConfigureTouchFromButton::DeleteBinding() {
-    const int row_index = ui->binding_list->currentIndex().row();
+    const int row_index = binding_list->currentIndex().row();
     if (row_index < 0) {
         return;
     }
-    ui->bottom_screen->RemoveDot(binding_list_model->index(row_index, 0).data(DataRoleDot).toInt());
+    bottom_screen->RemoveDot(binding_list_model->index(row_index, 0).data(DataRoleDot).toInt());
     binding_list_model->removeRow(row_index);
 }
 
 void ConfigureTouchFromButton::OnBindingSelection(const QItemSelection& selected,
                                                   const QItemSelection& deselected) {
-    ui->button_delete_bind->setEnabled(!selected.isEmpty());
+    button_delete_bind->setEnabled(!selected.isEmpty());
     if (!selected.isEmpty()) {
         const auto dot_data = selected.indexes().first().data(DataRoleDot);
         if (dot_data.isValid()) {
-            ui->bottom_screen->HighlightDot(dot_data.toInt());
+            bottom_screen->HighlightDot(dot_data.toInt());
         }
     }
     if (!deselected.isEmpty()) {
         const auto dot_data = deselected.indexes().first().data(DataRoleDot);
         if (dot_data.isValid()) {
-            ui->bottom_screen->HighlightDot(dot_data.toInt(), false);
+            bottom_screen->HighlightDot(dot_data.toInt(), false);
         }
     }
 }
@@ -318,9 +407,9 @@ void ConfigureTouchFromButton::OnBindingChanged(QStandardItem* item) {
 
     const auto dot_data = binding_list_model->index(item->row(), 0).data(DataRoleDot);
     if (dot_data.isValid()) {
-        ui->bottom_screen->MoveDot(dot_data.toInt(),
-                                   binding_list_model->item(item->row(), 1)->text().toInt(),
-                                   binding_list_model->item(item->row(), 2)->text().toInt());
+        bottom_screen->MoveDot(dot_data.toInt(),
+                               binding_list_model->item(item->row(), 1)->text().toInt(),
+                               binding_list_model->item(item->row(), 2)->text().toInt());
     }
 }
 
@@ -332,7 +421,7 @@ void ConfigureTouchFromButton::OnBindingDeleted(const QModelIndex& parent, int f
         }
         const auto dot_data = ix.data(DataRoleDot);
         if (dot_data.isValid()) {
-            ui->bottom_screen->RemoveDot(dot_data.toInt());
+            bottom_screen->RemoveDot(dot_data.toInt());
         }
     }
 }
@@ -340,8 +429,8 @@ void ConfigureTouchFromButton::OnBindingDeleted(const QModelIndex& parent, int f
 void ConfigureTouchFromButton::SetActiveBinding(const int dot_id) {
     for (int i = 0; i < binding_list_model->rowCount(); ++i) {
         if (binding_list_model->index(i, 0).data(DataRoleDot) == dot_id) {
-            ui->binding_list->setCurrentIndex(binding_list_model->index(i, 0));
-            ui->binding_list->setFocus();
+            binding_list->setCurrentIndex(binding_list_model->index(i, 0));
+            binding_list->setFocus();
             return;
         }
     }
@@ -404,6 +493,9 @@ std::vector<Settings::TouchFromButtonMap> ConfigureTouchFromButton::GetMaps() co
     return touch_maps;
 }
 
+// TouchScreenPreview implementation remains in configure_touch_from_button.cpp
+// since it was originally included in the same translation unit
+
 TouchScreenPreview::TouchScreenPreview(QWidget* parent) : QFrame(parent) {
     setBackgroundRole(QPalette::ColorRole::Base);
 }
@@ -450,7 +542,6 @@ void TouchScreenPreview::RemoveDot(const int id) {
 void TouchScreenPreview::HighlightDot(const int id, const bool active) const {
     for (const auto& dot : dots) {
         if (dot.first == id) {
-            // use color property from the stylesheet, or fall back to the default palette
             if (dot_highlight_color.isValid()) {
                 dot.second->setStyleSheet(
                     active ? QStringLiteral("color: %1").arg(dot_highlight_color.name())
@@ -505,7 +596,8 @@ void TouchScreenPreview::mouseMoveEvent(QMouseEvent* event) {
     if (!coord_label) {
         return;
     }
-    const auto pos = MapToDeviceCoords(static_cast<int>(event->position().x()), static_cast<int>(event->position().y()));
+    const auto pos = MapToDeviceCoords(static_cast<int>(event->position().x()),
+                                       static_cast<int>(event->position().y()));
     if (pos) {
         coord_label->setText(QStringLiteral("X: %1, Y: %2").arg(pos->x()).arg(pos->y()));
     } else {
@@ -523,7 +615,8 @@ void TouchScreenPreview::mousePressEvent(QMouseEvent* event) {
     if (event->button() != Qt::MouseButton::LeftButton) {
         return;
     }
-    const auto pos = MapToDeviceCoords(static_cast<int>(event->position().x()), static_cast<int>(event->position().y()));
+    const auto pos = MapToDeviceCoords(static_cast<int>(event->position().x()),
+                                       static_cast<int>(event->position().y()));
     if (pos) {
         emit DotAdded(*pos);
     }

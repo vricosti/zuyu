@@ -3,12 +3,9 @@
 
 #pragma once
 
-#include <memory>
 #include <QDialog>
 
-namespace Ui {
-class AboutDialog;
-}
+class QQuickWidget;
 
 class AboutDialog : public QDialog {
     Q_OBJECT
@@ -18,5 +15,5 @@ public:
     ~AboutDialog() override;
 
 private:
-    std::unique_ptr<Ui::AboutDialog> ui;
+    QQuickWidget* quick_widget = nullptr;
 };

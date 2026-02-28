@@ -3,14 +3,12 @@
 
 #pragma once
 
-#include <memory>
+#include <QDialog>
 #include <QFutureWatcher>
-#include <QWizard>
 #include "core/telemetry_session.h"
 
-namespace Ui {
-class CompatDB;
-}
+class CompatDBModel;
+class QQuickWidget;
 
 enum class CompatibilityStatus {
     Perfect = 0,
@@ -21,23 +19,21 @@ enum class CompatibilityStatus {
     WontBoot = 5,
 };
 
-class CompatDB : public QWizard {
+class CompatDB : public QDialog {
     Q_OBJECT
 
 public:
     explicit CompatDB(Core::TelemetrySession& telemetry_session_, QWidget* parent = nullptr);
     ~CompatDB();
-    int nextId() const override;
 
 private:
-    QFutureWatcher<bool> testcase_watcher;
-
-    std::unique_ptr<Ui::CompatDB> ui;
-
     void Submit();
     CompatibilityStatus CalculateCompatibility() const;
     void OnTestcaseSubmitted();
-    void EnableNext();
+
+    CompatDBModel* model = nullptr;
+    QQuickWidget* quick_widget = nullptr;
+    QFutureWatcher<bool> testcase_watcher;
 
     Core::TelemetrySession& telemetry_session;
 };

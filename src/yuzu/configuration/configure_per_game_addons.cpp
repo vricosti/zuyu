@@ -2,15 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
-#include <memory>
 #include <utility>
 
 #include <QHeaderView>
-#include <QMenu>
 #include <QStandardItemModel>
 #include <QString>
-#include <QTimer>
 #include <QTreeView>
+#include <QVBoxLayout>
 
 #include "common/fs/fs.h"
 #include "common/fs/path_util.h"
@@ -18,17 +16,16 @@
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/xts_archive.h"
 #include "core/loader/loader.h"
-#include "ui_configure_per_game_addons.h"
-#include "yuzu/configuration/configure_input.h"
 #include "yuzu/configuration/configure_per_game_addons.h"
 #include "yuzu/uisettings.h"
 
 ConfigurePerGameAddons::ConfigurePerGameAddons(Core::System& system_, QWidget* parent)
-    : QWidget(parent), ui{std::make_unique<Ui::ConfigurePerGameAddons>()}, system{system_} {
-    ui->setupUi(this);
+    : QWidget(parent), system{system_} {
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
 
-    layout = new QVBoxLayout;
-    tree_view = new QTreeView;
+    tree_view = new QTreeView(this);
     item_model = new QStandardItemModel(tree_view);
     tree_view->setModel(item_model);
     tree_view->setAlternatingRowColors(true);
@@ -49,17 +46,12 @@ ConfigurePerGameAddons::ConfigurePerGameAddons(Core::System& system_, QWidget* p
     tree_view->header()->setSectionResizeMode(0, QHeaderView::ResizeMode::Stretch);
     tree_view->header()->setMinimumSectionSize(150);
 
-    // We must register all custom types with the Qt Automoc system so that we are able to use it
-    // with signals/slots. In this case, QList falls under the umbrella of custom types.
     qRegisterMetaType<QList<QStandardItem*>>("QList<QStandardItem*>");
 
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
     layout->addWidget(tree_view);
+    setLayout(layout);
 
-    ui->scrollArea->setLayout(layout);
-
-    ui->scrollArea->setEnabled(!system.IsPoweredOn());
+    setEnabled(!system.IsPoweredOn());
 
     connect(item_model, &QStandardItemModel::itemChanged,
             [] { UISettings::values.is_game_list_reload_pending.exchange(true); });
@@ -94,18 +86,6 @@ void ConfigurePerGameAddons::LoadFromFile(FileSys::VirtualFile file_) {
 
 void ConfigurePerGameAddons::SetTitleId(u64 id) {
     this->title_id = id;
-}
-
-void ConfigurePerGameAddons::changeEvent(QEvent* event) {
-    if (event->type() == QEvent::LanguageChange) {
-        RetranslateUI();
-    }
-
-    QWidget::changeEvent(event);
-}
-
-void ConfigurePerGameAddons::RetranslateUI() {
-    ui->retranslateUi(this);
 }
 
 void ConfigurePerGameAddons::LoadConfiguration() {

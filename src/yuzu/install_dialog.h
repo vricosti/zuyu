@@ -5,12 +5,8 @@
 
 #include <QDialog>
 
-class QCheckBox;
-class QDialogButtonBox;
-class QHBoxLayout;
-class QLabel;
-class QListWidget;
-class QVBoxLayout;
+class InstallFileModel;
+class QQuickWidget;
 
 class InstallDialog : public QDialog {
     Q_OBJECT
@@ -23,12 +19,6 @@ public:
     [[nodiscard]] int GetMinimumWidth() const;
 
 private:
-    QListWidget* file_list;
-
-    QVBoxLayout* vbox_layout;
-    QHBoxLayout* hbox_layout;
-
-    QLabel* description;
-    QLabel* update_description;
-    QDialogButtonBox* buttons;
+    InstallFileModel* file_model = nullptr;
+    QQuickWidget* quick_widget = nullptr;
 };

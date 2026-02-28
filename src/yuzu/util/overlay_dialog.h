@@ -4,7 +4,6 @@
 #pragma once
 
 #include <atomic>
-#include <memory>
 #include <thread>
 
 #include <QDialog>
@@ -12,6 +11,7 @@
 #include "common/common_types.h"
 
 class InputInterpreter;
+class QQuickWidget;
 
 namespace Core {
 class System;
@@ -21,16 +21,10 @@ namespace Core::HID {
 enum class NpadButton : u64;
 }
 
-namespace Ui {
-class OverlayDialog;
-}
-
 /**
  * An OverlayDialog is an interactive dialog that accepts controller input (while a game is running)
  * This dialog attempts to replicate the look and feel of the Nintendo Switch's overlay dialogs and
- * provide some extra features such as embedding HTML/Rich Text content in a QTextBrowser.
- * The OverlayDialog provides 2 modes: one to embed regular text into a QLabel and another to embed
- * HTML/Rich Text content into a QTextBrowser.
+ * provide some extra features such as embedding HTML/Rich Text content.
  */
 class OverlayDialog final : public QDialog {
     Q_OBJECT
@@ -43,34 +37,6 @@ public:
     ~OverlayDialog() override;
 
 private:
-    /**
-     * Initializes a text dialog with a QLabel storing text.
-     * Only use this for short text as the dialog buttons would be squashed with longer text.
-     *
-     * @param title_text Title text to be displayed
-     * @param body_text Main text to be displayed
-     * @param left_button_text Left button text. If empty, the button is hidden and disabled
-     * @param right_button_text Right button text. If empty, the button is hidden and disabled
-     * @param alignment Main text alignment
-     */
-    void InitializeRegularTextDialog(const QString& title_text, const QString& body_text,
-                                     const QString& left_button_text,
-                                     const QString& right_button_text, Qt::Alignment alignment);
-
-    /**
-     * Initializes a text dialog with a QTextBrowser storing text.
-     * This is ideal for longer text or rich text content. A scrollbar is shown for longer text.
-     *
-     * @param title_text Title text to be displayed
-     * @param body_text Main text to be displayed
-     * @param left_button_text Left button text. If empty, the button is hidden and disabled
-     * @param right_button_text Right button text. If empty, the button is hidden and disabled
-     * @param alignment Main text alignment
-     */
-    void InitializeRichTextDialog(const QString& title_text, const QString& body_text,
-                                  const QString& left_button_text, const QString& right_button_text,
-                                  Qt::Alignment alignment);
-
     /// Moves and resizes the dialog to be fully overlaid on top of the parent window.
     void MoveAndResizeWindow();
 
@@ -96,9 +62,13 @@ private:
     void InputThread();
     void keyPressEvent(QKeyEvent* e) override;
 
-    std::unique_ptr<Ui::OverlayDialog> ui;
+    QQuickWidget* quick_widget = nullptr;
 
     bool use_rich_text;
+    bool has_buttons = false;
+
+    // Track which button has focus for controller input
+    int focused_button = 1; // 0 = left, 1 = right
 
     std::unique_ptr<InputInterpreter> input_interpreter;
 

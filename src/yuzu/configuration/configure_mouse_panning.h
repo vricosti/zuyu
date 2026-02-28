@@ -3,15 +3,14 @@
 
 #pragma once
 
-#include <memory>
 #include <QDialog>
+
+class QCheckBox;
+class QLabel;
+class QSpinBox;
 
 namespace InputCommon {
 class InputSubsystem;
-}
-
-namespace Ui {
-class ConfigureMousePanning;
 }
 
 class ConfigureMousePanning : public QDialog {
@@ -29,8 +28,14 @@ private:
     void closeEvent(QCloseEvent* event) override;
     void SetConfiguration(float right_stick_deadzone, float right_stick_range);
     void SetDefaultConfiguration();
-    void ConnectEvents();
 
     InputCommon::InputSubsystem* input_subsystem;
-    std::unique_ptr<Ui::ConfigureMousePanning> ui;
+
+    QCheckBox* enable;
+    QSpinBox* x_sensitivity;
+    QSpinBox* y_sensitivity;
+    QSpinBox* deadzone_counterweight;
+    QSpinBox* decay_strength;
+    QSpinBox* min_decay;
+    QLabel* warning_label;
 };

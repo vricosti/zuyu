@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <memory>
 #include <QWidget>
 #include "common/settings_enums.h"
 
@@ -11,9 +10,8 @@ namespace Core {
 class System;
 }
 
-namespace Ui {
-class ConfigureUi;
-}
+class QQuickWidget;
+class UiConfigModel;
 
 class ConfigureUi : public QWidget {
     Q_OBJECT
@@ -23,36 +21,17 @@ public:
     ~ConfigureUi() override;
 
     void ApplyConfiguration();
-
     void UpdateScreenshotInfo(Settings::AspectRatio ratio,
                               Settings::ResolutionSetup resolution_info);
-
-private slots:
-    void OnLanguageChanged(int index);
 
 signals:
     void LanguageChanged(const QString& locale);
 
+private slots:
+    void onBrowseScreenshotPath();
+
 private:
-    void RequestGameListUpdate();
-
-    void SetConfiguration();
-
-    void changeEvent(QEvent*) override;
-    void RetranslateUI();
-
-    void InitializeLanguageComboBox();
-    void InitializeIconSizeComboBox();
-    void InitializeRowComboBoxes();
-
-    void UpdateFirstRowComboBox(bool init = false);
-    void UpdateSecondRowComboBox(bool init = false);
-
-    void UpdateWidthText();
-
-    std::unique_ptr<Ui::ConfigureUi> ui;
-
-    Settings::AspectRatio ratio;
-    Settings::ResolutionSetup resolution_setting;
+    QQuickWidget* quick_widget = nullptr;
+    UiConfigModel* ui_model = nullptr;
     Core::System& system;
 };

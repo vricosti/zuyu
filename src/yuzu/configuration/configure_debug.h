@@ -3,18 +3,16 @@
 
 #pragma once
 
-#include <memory>
-#include <QScrollArea>
+#include <QWidget>
 
 namespace Core {
 class System;
 }
 
-namespace Ui {
-class ConfigureDebug;
-}
+class QQuickWidget;
+class SettingsModel;
 
-class ConfigureDebug : public QScrollArea {
+class ConfigureDebug : public QWidget {
     Q_OBJECT
 
 public:
@@ -23,15 +21,11 @@ public:
 
     void ApplyConfiguration();
 
+private slots:
+    void onOpenLogLocation();
+
 private:
-    void changeEvent(QEvent* event) override;
-
-    void RetranslateUI();
-    void SetConfiguration();
-
-    std::unique_ptr<Ui::ConfigureDebug> ui;
-
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* settings_model = nullptr;
     const Core::System& system;
-
-    bool crash_dump_warning_shown{false};
 };

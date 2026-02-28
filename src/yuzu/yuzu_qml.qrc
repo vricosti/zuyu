@@ -4,5 +4,49 @@
         <file>qml/GameListDelegate.qml</file>
         <file>qml/GameListSectionDelegate.qml</file>
         <file>qml/GameListSearchBar.qml</file>
+        <file>qml/StatusBar.qml</file>
+        <file>qml/StatusBarButton.qml</file>
+        <file>qml/StatusBarSeparator.qml</file>
+        <file>qml/VolumeControl.qml</file>
+        <file>qml/AboutDialog.qml</file>
+        <file>qml/LoadingScreen.qml</file>
+        <file>qml/OverlayDialog.qml</file>
+        <file>qml/CompatDBWizard.qml</file>
+        <file>qml/InstallDialog.qml</file>
+        <file>qml/SettingsPage.qml</file>
+        <file>qml/SettingDelegate.qml</file>
+        <file>qml/ConfigureGeneral.qml</file>
+        <file>qml/ConfigureApplets.qml</file>
+        <file>qml/ConfigureCpu.qml</file>
+        <file>qml/ConfigureNetwork.qml</file>
+        <file>qml/ConfigureAudio.qml</file>
+        <file>qml/ConfigureFilesystem.qml</file>
+        <file>qml/ConfigureSystem.qml</file>
+        <file>qml/ConfigureWeb.qml</file>
+        <file>qml/ConfigureUi.qml</file>
+        <file>qml/ConfigureHotkeys.qml</file>
+        <file>qml/ConfigureProfileManager.qml</file>
+        <file>qml/ConfigureGraphicsAdvanced.qml</file>
+        <file>qml/ConfigureDebug.qml</file>
+        <file>qml/ConfigureGraphics.qml</file>
+        <file>qml/components/qmldir</file>
+        <file>qml/components/ZTheme.qml</file>
+        <file>qml/components/ZButton.qml</file>
+        <file>qml/components/ZCheckBox.qml</file>
+        <file>qml/components/ZComboBox.qml</file>
+        <file>qml/components/ZTextField.qml</file>
+        <file>qml/components/ZTextArea.qml</file>
+        <file>qml/components/ZSpinBox.qml</file>
+        <file>qml/components/ZSlider.qml</file>
+        <file>qml/components/ZRadioButton.qml</file>
+        <file>qml/components/ZSwitch.qml</file>
+        <file>qml/components/ZTabBar.qml</file>
+        <file>qml/components/ZTabView.qml</file>
+        <file>qml/components/ZDialog.qml</file>
+        <file>qml/components/ZScrollView.qml</file>
+        <file>qml/components/ZGroupBox.qml</file>
+        <file>qml/components/ZToolTip.qml</file>
+        <file>qml/components/ZProgressBar.qml</file>
+        <file>qml/components/ZTreeView.qml</file>
     </qresource>
 </RCC>

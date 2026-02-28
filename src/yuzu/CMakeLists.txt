@@ -16,7 +16,6 @@ add_executable(yuzu
     Info.plist
     about_dialog.cpp
     about_dialog.h
-    aboutdialog.ui
     applets/qt_amiibo_settings.cpp
     applets/qt_amiibo_settings.h
     applets/qt_amiibo_settings.ui
@@ -35,53 +34,49 @@ add_executable(yuzu
     applets/qt_web_browser_scripts.h
     bootmanager.cpp
     bootmanager.h
-    compatdb.ui
     compatibility_list.cpp
     compatibility_list.h
     configuration/configuration_shared.cpp
     configuration/configuration_shared.h
+    configuration/settings_model.cpp
+    configuration/settings_model.h
     configuration/configure.ui
     configuration/configure_applets.cpp
     configuration/configure_applets.h
-    configuration/configure_applets.ui
     configuration/configure_audio.cpp
     configuration/configure_audio.h
-    configuration/configure_audio.ui
+    configuration/configure_audio_model.cpp
+    configuration/configure_audio_model.h
     configuration/configure_camera.cpp
     configuration/configure_camera.h
     configuration/configure_camera.ui
     configuration/configure_cpu.cpp
     configuration/configure_cpu.h
-    configuration/configure_cpu.ui
     configuration/configure_cpu_debug.cpp
     configuration/configure_cpu_debug.h
-    configuration/configure_cpu_debug.ui
     configuration/configure_debug.cpp
     configuration/configure_debug.h
-    configuration/configure_debug.ui
     configuration/configure_debug_controller.cpp
     configuration/configure_debug_controller.h
     configuration/configure_debug_controller.ui
     configuration/configure_debug_tab.cpp
     configuration/configure_debug_tab.h
-    configuration/configure_debug_tab.ui
     configuration/configure_dialog.cpp
     configuration/configure_dialog.h
     configuration/configure_filesystem.cpp
     configuration/configure_filesystem.h
-    configuration/configure_filesystem.ui
+    configuration/configure_filesystem_model.cpp
+    configuration/configure_filesystem_model.h
     configuration/configure_general.cpp
     configuration/configure_general.h
-    configuration/configure_general.ui
     configuration/configure_graphics.cpp
     configuration/configure_graphics.h
-    configuration/configure_graphics.ui
+    configuration/configure_graphics_model.cpp
+    configuration/configure_graphics_model.h
     configuration/configure_graphics_advanced.cpp
     configuration/configure_graphics_advanced.h
-    configuration/configure_graphics_advanced.ui
     configuration/configure_hotkeys.cpp
     configuration/configure_hotkeys.h
-    configuration/configure_hotkeys.ui
     configuration/configure_input.cpp
     configuration/configure_input.h
     configuration/configure_input.ui
@@ -98,53 +93,43 @@ add_executable(yuzu
     configuration/configure_input_player_widget.h
     configuration/configure_input_profile_dialog.cpp
     configuration/configure_input_profile_dialog.h
-    configuration/configure_input_profile_dialog.ui
     configuration/configure_linux_tab.cpp
     configuration/configure_linux_tab.h
-    configuration/configure_linux_tab.ui
     configuration/configure_mouse_panning.cpp
     configuration/configure_mouse_panning.h
-    configuration/configure_mouse_panning.ui
     configuration/configure_motion_touch.cpp
     configuration/configure_motion_touch.h
-    configuration/configure_motion_touch.ui
     configuration/configure_per_game.cpp
     configuration/configure_per_game.h
-    configuration/configure_per_game.ui
     configuration/configure_per_game_addons.cpp
     configuration/configure_per_game_addons.h
-    configuration/configure_per_game_addons.ui
     configuration/configure_profile_manager.cpp
     configuration/configure_profile_manager.h
-    configuration/configure_profile_manager.ui
     configuration/configure_ringcon.cpp
     configuration/configure_ringcon.h
-    configuration/configure_ringcon.ui
     configuration/configure_network.cpp
     configuration/configure_network.h
-    configuration/configure_network.ui
     configuration/configure_system.cpp
     configuration/configure_system.h
-    configuration/configure_system.ui
+    configuration/configure_system_model.cpp
+    configuration/configure_system_model.h
     configuration/configure_tas.cpp
     configuration/configure_tas.h
-    configuration/configure_tas.ui
     configuration/configure_touch_from_button.cpp
     configuration/configure_touch_from_button.h
-    configuration/configure_touch_from_button.ui
     configuration/configure_touchscreen_advanced.cpp
     configuration/configure_touchscreen_advanced.h
-    configuration/configure_touchscreen_advanced.ui
     configuration/configure_touch_widget.h
     configuration/configure_ui.cpp
     configuration/configure_ui.h
-    configuration/configure_ui.ui
+    configuration/configure_ui_model.cpp
+    configuration/configure_ui_model.h
     configuration/configure_vibration.cpp
     configuration/configure_vibration.h
-    configuration/configure_vibration.ui
     configuration/configure_web.cpp
     configuration/configure_web.h
-    configuration/configure_web.ui
+    configuration/configure_web_model.cpp
+    configuration/configure_web_model.h
     configuration/input_profiles.cpp
     configuration/input_profiles.h
     configuration/shared_translation.cpp
@@ -175,7 +160,8 @@ add_executable(yuzu
     install_dialog.h
     loading_screen.cpp
     loading_screen.h
-    loading_screen.ui
+    loading_screen_model.cpp
+    loading_screen_model.h
     main.cpp
     main.h
     main.ui
@@ -206,6 +192,9 @@ add_executable(yuzu
     play_time_manager.cpp
     play_time_manager.h
     precompiled_headers.h
+    qml_bridge.h
+    status_bar_model.cpp
+    status_bar_model.h
     qt_common.cpp
     qt_common.h
     startup_checks.cpp
@@ -220,7 +209,6 @@ add_executable(yuzu
     util/limitable_input_dialog.h
     util/overlay_dialog.cpp
     util/overlay_dialog.h
-    util/overlay_dialog.ui
     util/sequence_dialog/sequence_dialog.cpp
     util/sequence_dialog/sequence_dialog.h
     util/url_request_interceptor.cpp
@@ -231,6 +219,10 @@ add_executable(yuzu
     vk_device_info.h
     compatdb.cpp
     compatdb.h
+    compatdb_model.cpp
+    compatdb_model.h
+    install_dialog_model.cpp
+    install_dialog_model.h
     yuzu.qrc
     yuzu_qml.qrc
     yuzu.rc

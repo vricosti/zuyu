@@ -1,0 +1,19 @@
+module ZComponents
+singleton ZTheme 1.0 ZTheme.qml
+ZButton 1.0 ZButton.qml
+ZCheckBox 1.0 ZCheckBox.qml
+ZComboBox 1.0 ZComboBox.qml
+ZTextField 1.0 ZTextField.qml
+ZTextArea 1.0 ZTextArea.qml
+ZSpinBox 1.0 ZSpinBox.qml
+ZSlider 1.0 ZSlider.qml
+ZRadioButton 1.0 ZRadioButton.qml
+ZSwitch 1.0 ZSwitch.qml
+ZTabBar 1.0 ZTabBar.qml
+ZTabView 1.0 ZTabView.qml
+ZDialog 1.0 ZDialog.qml
+ZScrollView 1.0 ZScrollView.qml
+ZGroupBox 1.0 ZGroupBox.qml
+ZToolTip 1.0 ZToolTip.qml
+ZProgressBar 1.0 ZProgressBar.qml
+ZTreeView 1.0 ZTreeView.qml

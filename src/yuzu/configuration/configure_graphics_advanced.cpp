@@ -1,82 +1,64 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <vector>
-#include <QLabel>
-#include <qnamespace.h>
+#include <QQmlContext>
+#include <QQuickWidget>
+#include <QVBoxLayout>
+
+#include "common/logging/log.h"
 #include "common/settings.h"
 #include "core/core.h"
-#include "ui_configure_graphics_advanced.h"
-#include "yuzu/configuration/configuration_shared.h"
 #include "yuzu/configuration/configure_graphics_advanced.h"
-#include "yuzu/configuration/shared_translation.h"
-#include "yuzu/configuration/shared_widget.h"
+#include "yuzu/configuration/settings_model.h"
+#include "yuzu/qml_bridge.h"
 
 ConfigureGraphicsAdvanced::ConfigureGraphicsAdvanced(
-    const Core::System& system_, std::shared_ptr<std::vector<ConfigurationShared::Tab*>> group_,
+    const Core::System& system_,
+    std::shared_ptr<std::vector<ConfigurationShared::Tab*>> group_,
     const ConfigurationShared::Builder& builder, QWidget* parent)
-    : Tab(group_, parent), ui{std::make_unique<Ui::ConfigureGraphicsAdvanced>()}, system{system_} {
+    : Tab(group_, parent), system{system_} {
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
 
-    ui->setupUi(this);
+    settings_model = new SettingsModel(this);
+    settings_model->populate(Settings::Category::RendererAdvanced);
+    settings_model->setRuntimeLock(system.IsPoweredOn());
 
-    Setup(builder);
+    quick_widget = new QQuickWidget(this);
+    quick_widget->setResizeMode(QQuickWidget::SizeRootObjectToView);
 
-    SetConfiguration();
+    QQmlContext* ctx = quick_widget->rootContext();
+    QmlBridge::SetupContext(ctx);
+    ctx->setContextProperty(QStringLiteral("settingsModel"), settings_model);
+    ctx->setContextProperty(QStringLiteral("pageTitle"), tr("Advanced Graphics"));
+    // Compute pipelines are hidden until ExposeComputeOption() is called
+    ctx->setContextProperty(QStringLiteral("computePipelinesSettingId"),
+                            QVariant::fromValue(Settings::values.enable_compute_pipelines.Id()));
+    ctx->setContextProperty(QStringLiteral("showComputePipelines"), false);
 
-    checkbox_enable_compute_pipelines->setVisible(false);
+    quick_widget->setSource(
+        QUrl(QStringLiteral("qrc:/qml/qml/ConfigureGraphicsAdvanced.qml")));
+
+    if (quick_widget->status() == QQuickWidget::Error) {
+        for (const auto& error : quick_widget->errors()) {
+            LOG_ERROR(Frontend, "ConfigureGraphicsAdvanced QML Error: {}",
+                      error.toString().toStdString());
+        }
+    }
+
+    layout->addWidget(quick_widget);
+    setLayout(layout);
 }
 
 ConfigureGraphicsAdvanced::~ConfigureGraphicsAdvanced() = default;
 
 void ConfigureGraphicsAdvanced::SetConfiguration() {}
 
-void ConfigureGraphicsAdvanced::Setup(const ConfigurationShared::Builder& builder) {
-    auto& layout = *ui->populate_target->layout();
-    std::map<u32, QWidget*> hold{}; // A map will sort the data for us
-
-    for (auto setting :
-         Settings::values.linkage.by_category[Settings::Category::RendererAdvanced]) {
-        ConfigurationShared::Widget* widget = builder.BuildWidget(setting, apply_funcs);
-
-        if (widget == nullptr) {
-            continue;
-        }
-        if (!widget->Valid()) {
-            widget->deleteLater();
-            continue;
-        }
-
-        hold.emplace(setting->Id(), widget);
-
-        // Keep track of enable_compute_pipelines so we can display it when needed
-        if (setting->Id() == Settings::values.enable_compute_pipelines.Id()) {
-            checkbox_enable_compute_pipelines = widget;
-        }
-    }
-    for (const auto& [id, widget] : hold) {
-        layout.addWidget(widget);
-    }
-}
-
 void ConfigureGraphicsAdvanced::ApplyConfiguration() {
-    const bool is_powered_on = system.IsPoweredOn();
-    for (const auto& func : apply_funcs) {
-        func(is_powered_on);
-    }
-}
-
-void ConfigureGraphicsAdvanced::changeEvent(QEvent* event) {
-    if (event->type() == QEvent::LanguageChange) {
-        RetranslateUI();
-    }
-
-    QWidget::changeEvent(event);
-}
-
-void ConfigureGraphicsAdvanced::RetranslateUI() {
-    ui->retranslateUi(this);
+    // Values are already written to settings via LoadString in SettingsModel
 }
 
 void ConfigureGraphicsAdvanced::ExposeComputeOption() {
-    checkbox_enable_compute_pipelines->setVisible(true);
+    quick_widget->rootContext()->setContextProperty(QStringLiteral("showComputePipelines"),
+                                                    true);
 }

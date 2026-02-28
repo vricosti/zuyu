@@ -8,13 +8,10 @@
 
 class ConfigureDebug;
 class ConfigureCpuDebug;
+class QTabWidget;
 
 namespace Core {
 class System;
-}
-
-namespace Ui {
-class ConfigureDebugTab;
 }
 
 class ConfigureDebugTab : public QWidget {
@@ -29,13 +26,7 @@ public:
     void SetCurrentIndex(int index);
 
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    void SetConfiguration();
-
-    std::unique_ptr<Ui::ConfigureDebugTab> ui;
-
+    QTabWidget* tab_widget = nullptr;
     std::unique_ptr<ConfigureDebug> debug_tab;
     std::unique_ptr<ConfigureCpuDebug> cpu_debug_tab;
 };

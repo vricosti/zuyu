@@ -5,9 +5,8 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
-#include <QDialog>
-#include <QList>
 #include <QWidget>
 
 namespace Common {
@@ -18,35 +17,12 @@ namespace Core {
 class System;
 }
 
-class QGraphicsScene;
-class QDialogButtonBox;
-class QLabel;
-class QStandardItem;
-class QStandardItemModel;
-class QTreeView;
-class QVBoxLayout;
-
 namespace Service::Account {
 class ProfileManager;
 }
 
-namespace Ui {
-class ConfigureProfileManager;
-}
-
-class ConfigureProfileManagerDeleteDialog : public QDialog {
-public:
-    explicit ConfigureProfileManagerDeleteDialog(QWidget* parent);
-    ~ConfigureProfileManagerDeleteDialog();
-
-    void SetInfo(const QString& username, const Common::UUID& uuid,
-                 std::function<void()> accept_callback);
-
-private:
-    QDialogButtonBox* dialog_button_box;
-    QGraphicsScene* icon_scene;
-    QLabel* label_info;
-};
+class QQuickWidget;
+class QStandardItemModel;
 
 class ConfigureProfileManager : public QWidget {
     Q_OBJECT
@@ -57,34 +33,22 @@ public:
 
     void ApplyConfiguration();
 
+public slots:
+    void onSelectUser(int index);
+    void onAddUser();
+    void onRenameUser();
+    void onDeleteUser();
+    void onSetUserImage();
+
 private:
-    void changeEvent(QEvent* event) override;
-    void RetranslateUI();
-
-    void SetConfiguration();
-
     void PopulateUserList();
     void UpdateCurrentUser();
+    void RefreshModel();
 
-    void SelectUser(const QModelIndex& index);
-    void AddUser();
-    void RenameUser();
-    void ConfirmDeleteUser();
-    void DeleteUser(const Common::UUID& uuid);
-    void SetUserImage();
+    QQuickWidget* quick_widget = nullptr;
+    QStandardItemModel* user_model = nullptr;
 
-    QVBoxLayout* layout;
-    QTreeView* tree_view;
-    QStandardItemModel* item_model;
-    QGraphicsScene* scene;
-
-    ConfigureProfileManagerDeleteDialog* confirm_dialog;
-
-    std::vector<QList<QStandardItem*>> list_items;
-
-    std::unique_ptr<Ui::ConfigureProfileManager> ui;
     bool enabled = false;
-
     Service::Account::ProfileManager& profile_manager;
     const Core::System& system;
 };

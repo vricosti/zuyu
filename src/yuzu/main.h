@@ -43,8 +43,10 @@ class QLabel;
 class MultiplayerState;
 class QPushButton;
 class QProgressDialog;
+class QQuickWidget;
 class QSlider;
 class QHBoxLayout;
+class StatusBarModel;
 class WaitTreeWidget;
 enum class GameListOpenTarget;
 enum class GameListRemoveTarget;
@@ -128,28 +130,6 @@ enum class EmulatedDirectoryTarget {
 namespace VkDeviceInfo {
 class Record;
 }
-
-class VolumeButton : public QPushButton {
-    Q_OBJECT
-public:
-    explicit VolumeButton(QWidget* parent = nullptr) : QPushButton(parent), scroll_multiplier(1) {
-        connect(&scroll_timer, &QTimer::timeout, this, &VolumeButton::ResetMultiplier);
-    }
-
-signals:
-    void VolumeChanged();
-
-protected:
-    void wheelEvent(QWheelEvent* event) override;
-
-private slots:
-    void ResetMultiplier();
-
-private:
-    int scroll_multiplier;
-    QTimer scroll_timer;
-    constexpr static int MaxMultiplier = 8;
-};
 
 class GMainWindow : public QMainWindow {
     Q_OBJECT
@@ -489,23 +469,9 @@ private:
 
     std::vector<VkDeviceInfo::Record> vk_device_records;
 
-    // Status bar elements
-    QLabel* message_label = nullptr;
-    QLabel* shader_building_label = nullptr;
-    QLabel* res_scale_label = nullptr;
-    QLabel* emu_speed_label = nullptr;
-    QLabel* game_fps_label = nullptr;
-    QLabel* emu_frametime_label = nullptr;
-    QLabel* tas_label = nullptr;
-    QLabel* firmware_label = nullptr;
-    QPushButton* gpu_accuracy_button = nullptr;
-    QPushButton* renderer_status_button = nullptr;
-    QPushButton* dock_status_button = nullptr;
-    QPushButton* filter_status_button = nullptr;
-    QPushButton* aa_status_button = nullptr;
-    VolumeButton* volume_button = nullptr;
-    QWidget* volume_popup = nullptr;
-    QSlider* volume_slider = nullptr;
+    // Status bar (QML-based)
+    StatusBarModel* status_bar_model = nullptr;
+    QQuickWidget* status_bar_widget = nullptr;
     QTimer status_bar_update_timer;
 
     std::unique_ptr<QtConfig> config;

@@ -3,21 +3,17 @@
 
 #pragma once
 
-#include <functional>
-#include <memory>
 #include <vector>
 #include <QWidget>
 #include "yuzu/configuration/configuration_shared.h"
-
-class QComboBox;
 
 namespace Core {
 class System;
 }
 
-namespace Ui {
-class ConfigureAudio;
-}
+class AudioConfigModel;
+class QQuickWidget;
+class SettingsModel;
 
 namespace ConfigurationShared {
 class Builder;
@@ -36,31 +32,9 @@ public:
     void SetConfiguration() override;
 
 private:
-    void changeEvent(QEvent* event) override;
-
-    void InitializeAudioSinkComboBox();
-
-    void RetranslateUI();
-
-    void UpdateAudioDevices(int sink_index);
-
-    void SetOutputSinkFromSinkID();
-    void SetOutputDevicesFromDeviceID();
-    void SetInputDevicesFromDeviceID();
-
-    void Setup(const ConfigurationShared::Builder& builder);
-
-    std::unique_ptr<Ui::ConfigureAudio> ui;
+    QQuickWidget* quick_widget = nullptr;
+    SettingsModel* settings_model = nullptr;
+    AudioConfigModel* audio_model = nullptr;
 
     const Core::System& system;
-
-    std::vector<std::function<void(bool)>> apply_funcs{};
-
-    bool updating_devices = false;
-    QComboBox* sink_combo_box;
-    QPushButton* restore_sink_button;
-    QComboBox* output_device_combo_box;
-    QPushButton* restore_output_device_button;
-    QComboBox* input_device_combo_box;
-    QPushButton* restore_input_device_button;
 };
