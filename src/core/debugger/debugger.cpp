@@ -6,7 +6,13 @@
 #include <thread>
 
 #include <boost/asio.hpp>
+#if BOOST_VERSION >= 108600
 #include <boost/process/v1/async_pipe.hpp>
+namespace bp = boost::process::v1;
+#else
+#include <boost/process/async_pipe.hpp>
+namespace bp = boost::process;
+#endif
 
 #include "common/logging/log.h"
 #include "common/polyfill_thread.h"
@@ -326,7 +332,7 @@ private:
 
     struct ConnectionState {
         boost::asio::ip::tcp::socket client_socket;
-        boost::process::v1::async_pipe signal_pipe;
+        bp::async_pipe signal_pipe;
 
         SignalInfo info;
         Kernel::KScopedAutoObject<Kernel::KThread> active_thread;

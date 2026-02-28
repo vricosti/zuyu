@@ -184,7 +184,11 @@ QtControllerSelectorDialog::QtControllerSelectorDialog(
                     CheckIfParametersMet();
                 });
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
         connect(connected_controller_checkboxes[i], &QCheckBox::checkStateChanged, [this, i](Qt::CheckState state) {
+#else
+        connect(connected_controller_checkboxes[i], &QCheckBox::stateChanged, [this, i](int state) {
+#endif
             player_groupboxes[i]->setChecked(state == Qt::Checked);
             UpdateControllerIcon(i);
             UpdateControllerState(i);

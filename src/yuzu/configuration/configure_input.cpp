@@ -121,7 +121,11 @@ void ConfigureInput::Initialize(InputCommon::InputSubsystem* input_subsystem,
                 &ConfigureInput::UpdateAllInputDevices);
         connect(player_controllers[i], &ConfigureInputPlayer::RefreshInputProfiles, this,
                 &ConfigureInput::UpdateAllInputProfiles, Qt::QueuedConnection);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
         connect(connected_controller_checkboxes[i], &QCheckBox::checkStateChanged, [this, i](Qt::CheckState state) {
+#else
+        connect(connected_controller_checkboxes[i], &QCheckBox::stateChanged, [this, i](int state) {
+#endif
             // Keep activated controllers synced with the "Connected Controllers" checkboxes
             player_controllers[i]->ConnectPlayer(state == Qt::Checked);
         });

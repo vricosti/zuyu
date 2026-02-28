@@ -693,6 +693,7 @@ void Widget::SetupComponent(const QString& label, std::function<void()>& load_fu
     }
 
     if (other_setting != nullptr) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
         const auto reset = [restore_func, data_component](Qt::CheckState state) {
             data_component->setEnabled(state == Qt::Checked);
             if (state != Qt::Checked) {
@@ -700,6 +701,15 @@ void Widget::SetupComponent(const QString& label, std::function<void()>& load_fu
             }
         };
         connect(checkbox, &QCheckBox::checkStateChanged, reset);
+#else
+        const auto reset = [restore_func, data_component](int state) {
+            data_component->setEnabled(state == Qt::Checked);
+            if (state != Qt::Checked) {
+                restore_func();
+            }
+        };
+        connect(checkbox, &QCheckBox::stateChanged, reset);
+#endif
         reset(checkbox->checkState());
     }
 }

@@ -367,6 +367,7 @@ else()
 endif()
 
 if (ARCHITECTURE_x86_64)
+    set_source_files_properties(host1x/vic.cpp PROPERTIES COMPILE_OPTIONS "-msse4.1")
     target_sources(video_core PRIVATE
         macro/macro_jit_x64.cpp
         macro/macro_jit_x64.h
