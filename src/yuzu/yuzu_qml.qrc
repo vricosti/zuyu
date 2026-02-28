@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/qml">
+        <file>qml/GameListView.qml</file>
+        <file>qml/GameListDelegate.qml</file>
+        <file>qml/GameListSectionDelegate.qml</file>
+        <file>qml/GameListSearchBar.qml</file>
+    </qresource>
+</RCC>

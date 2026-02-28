@@ -367,7 +367,7 @@ endif()
 
 function(set_yuzu_qt_components)
     # Best practice is to ask for all components at once, so they are from the same version
-    set(YUZU_QT_COMPONENTS2 Core Widgets Concurrent)
+    set(YUZU_QT_COMPONENTS2 Core Widgets Concurrent Quick QuickWidgets Qml)
     if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         list(APPEND YUZU_QT_COMPONENTS2 DBus)
     endif()

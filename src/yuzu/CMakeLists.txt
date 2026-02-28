@@ -164,6 +164,8 @@ add_executable(yuzu
     discord.h
     game_list.cpp
     game_list.h
+    game_list_model.cpp
+    game_list_model.h
     game_list_p.h
     game_list_worker.cpp
     game_list_worker.h
@@ -230,6 +232,7 @@ add_executable(yuzu
     compatdb.cpp
     compatdb.h
     yuzu.qrc
+    yuzu_qml.qrc
     yuzu.rc
 )
 
@@ -382,7 +385,7 @@ elseif(WIN32)
 endif()
 
 target_link_libraries(yuzu PRIVATE common core input_common frontend_common network video_core)
-target_link_libraries(yuzu PRIVATE Boost::headers glad Qt${QT_MAJOR_VERSION}::Widgets Qt${QT_MAJOR_VERSION}::Concurrent)
+target_link_libraries(yuzu PRIVATE Boost::headers glad Qt${QT_MAJOR_VERSION}::Widgets Qt${QT_MAJOR_VERSION}::Concurrent Qt${QT_MAJOR_VERSION}::Quick Qt${QT_MAJOR_VERSION}::QuickWidgets Qt${QT_MAJOR_VERSION}::Qml)
 target_link_libraries(yuzu PRIVATE ${PLATFORM_LIBRARIES} Threads::Threads)
 
 target_link_libraries(yuzu PRIVATE Vulkan::Headers)

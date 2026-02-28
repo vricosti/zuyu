@@ -5,11 +5,10 @@
 
 #include <QFileSystemWatcher>
 #include <QLabel>
-#include <QLineEdit>
 #include <QList>
+#include <QQuickWidget>
 #include <QStandardItemModel>
 #include <QString>
-#include <QTreeView>
 #include <QVBoxLayout>
 #include <QVector>
 #include <QWidget>
@@ -18,15 +17,14 @@
 #include "core/core.h"
 #include "uisettings.h"
 #include "yuzu/compatibility_list.h"
+#include "yuzu/game_list_model.h"
 #include "yuzu/play_time_manager.h"
 
 namespace Core {
 class System;
 }
 
-class ControllerNavigation;
 class GameListWorker;
-class GameListSearchField;
 class GameListDir;
 class GMainWindow;
 enum class AmLaunchType;
@@ -130,10 +128,11 @@ signals:
     void SaveConfig();
 
 private slots:
-    void OnItemExpanded(const QModelIndex& item);
-    void OnTextChanged(const QString& new_text);
-    void OnFilterCloseClicked();
-    void OnUpdateThemedIcons();
+    void OnGameDoubleClicked(const QString& path, const QVariant& titleId);
+    void OnContextMenuRequested(int sourceIndex, qreal globalX, qreal globalY);
+    void OnSearchClosed();
+    void OnSingleResultLaunched(const QString& path);
+    void OnFavoriteToggled(quint64 programId);
 
 private:
     friend class GameListWorker;
@@ -144,39 +143,43 @@ private:
     void DonePopulating(const QStringList& watch_list);
 
 private:
-    void ValidateEntry(const QModelIndex& item);
-
     void RefreshGameDirectory();
 
     void ToggleFavorite(u64 program_id);
-    void AddFavorite(u64 program_id);
-    void RemoveFavorite(u64 program_id);
 
-    void PopupContextMenu(const QPoint& menu_location);
+    void PopupContextMenu(const QPoint& globalPos, int sourceIndex);
     void AddGamePopup(QMenu& context_menu, u64 program_id, const std::string& path);
-    void AddCustomDirPopup(QMenu& context_menu, QModelIndex selected);
-    void AddPermDirPopup(QMenu& context_menu, QModelIndex selected);
+    void AddCustomDirPopup(QMenu& context_menu, int sourceIndex);
+    void AddPermDirPopup(QMenu& context_menu, int sourceIndex);
     void AddFavoritesPopup(QMenu& context_menu);
 
+    void RebuildCompatModel() const;
+
     void changeEvent(QEvent*) override;
-    void RetranslateUI();
 
     std::shared_ptr<FileSys::VfsFilesystem> vfs;
     FileSys::ManualContentProvider* provider;
-    GameListSearchField* search_field;
     GMainWindow* main_window = nullptr;
     QVBoxLayout* layout = nullptr;
-    QTreeView* tree_view = nullptr;
-    QStandardItemModel* item_model = nullptr;
+    QQuickWidget* quick_widget = nullptr;
+
+    GameListModel* qml_model = nullptr;
+    GameIconProvider* icon_provider = nullptr;
+    GameListSortFilterProxy* proxy_model = nullptr;
+
     std::unique_ptr<GameListWorker> current_worker;
     QFileSystemWatcher* watcher = nullptr;
-    ControllerNavigation* controller_navigation = nullptr;
     CompatibilityList compatibility_list;
 
-    friend class GameListSearchField;
+    // Lazily-rebuilt QStandardItemModel for multiplayer compatibility
+    mutable QStandardItemModel* compat_model = nullptr;
+    mutable bool compat_model_dirty = true;
 
     const PlayTime::PlayTimeManager& play_time_manager;
     Core::System& system;
+
+    // Track current sections for AddEntry parent mapping
+    QHash<GameListDir*, int> section_start_indices;
 };
 
 class GameListPlaceholder : public QWidget {
